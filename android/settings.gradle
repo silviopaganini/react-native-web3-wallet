@@ -1,0 +1,3 @@
+rootProject.name = 'erc20Wallet'
+
+include ':app'
