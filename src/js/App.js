@@ -18,23 +18,6 @@ export default class App extends Component {
     contract: null
   }
 
-  componentDidMount() {
-
-    // var originalBalance = web3.eth.getBalance(coinbase).toNumber();
-    // document.getElementById('coinbase').innerText = 'coinbase: ' + coinbase;
-    // document.getElementById('original').innerText = ' original balance: ' + originalBalance + '    watching...';
-    // web3.eth.filter('latest').watch(function() {
-    //     var currentBalance = web3.eth.getBalance(coinbase).toNumber();
-    //     document.getElementById("current").innerText = 'current: ' + currentBalance;
-    //     document.getElementById("diff").innerText = 'diff:    ' + (currentBalance - originalBalance);
-    // });
-  }
-
-  onChangeField = (event) => {
-    console.log(event.target);
-    // this.setState({[event.currentTarget.dataset.id] : event.currentTarget.value})
-  }
-
   onImportKey = async () => {
     const { sk, pk, password } = this.state;
     var personal = new Web3EthPersonal(PROVIDER);
@@ -118,7 +101,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-    // alignItems: 'center',
     justifyContent: 'center',
     padding: 20
   },
