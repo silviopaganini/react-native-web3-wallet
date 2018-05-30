@@ -10,7 +10,6 @@
         "expect": true,
         "it": true,
         "testHelpers": true,
-        "graphql": true
     },
     "plugins": [
         "react"
@@ -116,8 +115,6 @@
         "valid-jsdoc": [0, {"prefer": { "return": "returns"}}],
         "wrap-iife": 2,
         "yoda": [2, "never"],
-
-
         "react/display-name": 0,
         "react/jsx-boolean-value": 0,
         "react/jsx-no-undef": 2,
