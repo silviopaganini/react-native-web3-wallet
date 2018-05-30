@@ -2,17 +2,14 @@ import React, {Component, Fragment} from 'react';
 import './global';
 import {utils} from 'web3';
 import Web3 from './web3';
-import Web3EthPersonal from 'web3-eth-personal';
 import {getContract} from './contract';
-import {PROVIDER, CONTRACT_ADDRESS} from './constants';
+import {CONTRACT_ADDRESS} from './constants';
 import {StyleSheet, Text, View, TextInput, Button} from 'react-native';
 
 export default class App extends Component {
 
   state = {
       sk: '0xd34428068334f2899909ebfac2b0098ad60755dc2b2bbcadcb18963d8ff51c2d',
-      pk: '0x798D23d6a84b2EF7d23c4A25735ED55B72072c24',
-      password: '',
       coinbase: null,
       balance: null,
       contract: null,
@@ -21,13 +18,9 @@ export default class App extends Component {
   }
 
   onImportKey = async () => {
-      const {sk, pk, password} = this.state;
-      const personal = new Web3EthPersonal(PROVIDER);
-      personal.importRawKey(sk.substr(0, 2) !== '0x' ? `0x${sk}` : sk, password);
-
-      const accs = await personal.getAccounts();
-      const coinbase = accs.find(c => c.toLowerCase() === (pk.substr(0, 2) !== '0x' ? `0x${pk}` : pk).toLowerCase());
-
+      const {sk} = this.state;
+      const account = Web3.eth.accounts.privateKeyToAccount(sk);
+      const coinbase = account.address;
       const balance = await Web3.eth.getBalance(coinbase);
       this.setState({coinbase, balance});
   }
@@ -89,14 +82,19 @@ export default class App extends Component {
       try {
           console.log(contract);
           const burn = await contract.methods.burn(50).send();
+          console.log(burn);
           this.updateInfo();
       } catch (e) {
           console.log(e);
       }
   }
 
+  onChangeTextField = (text) => {
+      this.setState({sk: text.substr(0, 2) !== '0x' ? `0x${text}` : text});
+  }
+
   render() {
-      const {sk, pk, password, coinbase, balance, contract, contractInfo, burningInfo} = this.state;
+      const {sk, coinbase, balance, contract, contractInfo, burningInfo} = this.state;
       return (
           <View style={styles.container}>
               {coinbase &&
@@ -124,11 +122,16 @@ export default class App extends Component {
               }
               {!coinbase && <Fragment>
                   <Text>Import your Private key</Text>
-                  <TextInput autoCapitalize="none" autoCorrect={false} style={{height: 40, padding: 5, borderColor: 'black', borderWidth: 1, width: '100%'}} data-id="sk" value={sk} onChangeText={text => this.setState({sk: text})} />
-                  <Text>Password</Text>
-                  <TextInput autoCapitalize="none" autoCorrect={false} style={{height: 40, padding: 5, borderColor: 'black', borderWidth: 1, width: '100%'}} type="password" data-id="password" value={password} onChangeText={text => this.setState({password: text})} />
-                  <Text>Public address</Text>
-                  <TextInput autoCapitalize="none" autoCorrect={false} style={{height: 40, padding: 5, borderColor: 'black', borderWidth: 1, width: '100%'}} data-id="pk" value={pk} onChangeText={text => this.setState({pk: text})} />
+                  <TextInput
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      defaultValue="0x"
+                      style={{height: 40, padding: 10, borderColor: 'black', borderWidth: 1, width: '100%'}}
+                      multiline={true}
+                      numberOfLines={2}
+                      value={sk}
+                      onChangeText={this.onChangeTextField}
+                  />
                   <Button onPress={this.onImportKey} title="Import" />
               </Fragment>}
           </View>
