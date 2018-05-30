@@ -7,8 +7,6 @@ const initWeb3 = () => {
   if(web3) return web3;
 
   web3 = new Web3(new Web3.providers.HttpProvider(PROVIDER));
-  web3.eth.getBlock('latest').then(console.log)
-
   return web3;
 }
 

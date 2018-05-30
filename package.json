@@ -8,9 +8,17 @@
     "test": "jest"
   },
   "dependencies": {
+    "contentful": "^6.1.1",
+    "immutable": "^3.8.2",
     "node-libs-browser": "^2.1.0",
     "react": "16.3.1",
     "react-native": "0.55.4",
+    "react-native-elements": "^0.19.1",
+    "react-native-vector-icons": "^4.6.0",
+    "react-redux": "^5.0.7",
+    "redux": "^4.0.0",
+    "redux-thunk": "^2.3.0",
+    "stellar-sdk": "^0.8.1",
     "web3": "^1.0.0-beta.34"
   },
   "devDependencies": {

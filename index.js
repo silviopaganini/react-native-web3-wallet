@@ -1,4 +1,4 @@
 import { AppRegistry } from 'react-native';
-import App from './src/js/App';
+import Main from './src/main';
 
-AppRegistry.registerComponent('erc20Wallet', () => App);
+AppRegistry.registerComponent('erc20Wallet', () => Main);
