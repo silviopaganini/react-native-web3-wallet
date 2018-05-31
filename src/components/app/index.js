@@ -1,4 +1,4 @@
-import React, {Component} from 'react';
+import React, {Component, Fragment} from 'react';
 import {connect} from 'react-redux';
 import {
     Button,
@@ -6,7 +6,9 @@ import {
     FormInput,
     FormValidationMessage
 } from 'react-native-elements';
-import {Text, StyleSheet, View, ScrollView, Linking} from 'react-native';
+import {Text, Modal, StyleSheet, View, ScrollView, Linking} from 'react-native';
+import Web3 from '../../constants/web3';
+import {utils} from 'web3';
 import {createStellarAccount} from '../../actions/stellar';
 import {
     getWallet,
@@ -26,6 +28,11 @@ class App extends Component {
       mnemonic: '',
       pk: '',
       errorImportingAccount: false,
+      modal: {
+          visible: false,
+          message: '',
+      },
+      estimatedCost: null
   }
 
   componentDidMount() {
@@ -49,23 +56,52 @@ class App extends Component {
       this.setState({mnemonic});
   }
 
-  onSubmit = (e) => {
-      e.preventDefault();
-      this.props.transfer(
-          this.state.accountToSendTokens,
-          this.state.tokensToSend
-      );
+  onSubmitBurn = async () => {
+      const {contract} = this.props;
+      const {burnInput} = this.state;
+
+      this.setState({
+          modal: {
+              visible: true,
+              message: 'Please wait, estimating gas cost...',
+          }
+      });
+
+      try {
+          const gasPrice = await Web3.eth.getGasPrice();
+          const estimatedGas = await contract.instance.methods.burn(burnInput).estimateGas();
+          this.setState({
+              estimatedCost: `${utils.fromWei(String(estimatedGas * gasPrice), 'ether')} ETH`,
+          });
+
+          this.setState({
+              modal: {
+                  visible: true,
+                  message: 'confirm'
+              }
+          });
+      } catch (err) {
+          console.log(err);
+      }
   }
 
-  onSubmitBurn = (e) => {
-      e.preventDefault();
-
+  onConfirmedSubmitBurn = () => {
+      this.closeModal();
       this.props.createStellarAccount();
       this.props.burn(Number(this.state.burnInput));
   }
 
+  closeModal = () => {
+      this.setState({
+          modal: {
+              visible: false,
+              message: ''
+          }
+      });
+  }
+
   render() {
-      const {mnemonic, pk, burnInput, errorImportingAccount} = this.state;
+      const {estimatedCost, mnemonic, pk, burnInput, errorImportingAccount} = this.state;
       const {
           loading,
           contract,
@@ -159,6 +195,27 @@ class App extends Component {
               </View>
 
               <Loading message={loading} />
+              <Modal animationType="slide" visible={this.state.modal.visible}>
+                  <View style={styles.modalConfirm}>
+                      {this.state.modal.message === 'confirm' &&
+                          <Fragment>
+                              <Text style={styles.modalTitle}>The estimated gas for this transaction is</Text>
+                              <Text style={[styles.modalTitle, styles.modalTitleCost]}>{estimatedCost}</Text>
+                              <Text>Are you sure you want to burn your tokens? They will be automatically converted into Stellar Wollo Tokens</Text>
+                              <View>
+                                  <Button titleStyle={styles.buttonTitleStyle} buttonStyle={[styles.buttonStyle, styles.buttonGreen]} onPress={this.onConfirmedSubmitBurn} title="Let's do this" />
+                                  <Button titleStyle={styles.buttonTitleStyle} buttonStyle={[styles.buttonStyle, styles.buttonRed]} onPress={this.closeModal} title="No" />
+                              </View>
+                          </Fragment>
+                      }
+
+                      {this.state.modal.message !== 'confirm' && this.state.modal.message !== '' &&
+                          <Fragment>
+                              <Text>{this.state.modal.message}</Text>
+                          </Fragment>
+                      }
+                  </View>
+              </Modal>
           </ScrollView>
       );
   }
@@ -176,6 +233,30 @@ const styles = StyleSheet.create({
     },
     inputTextArea: {
         marginBottom: 20,
+    },
+    modalConfirm: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    modalTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    modalTitleCost: {
+        marginBottom: 30,
+    },
+    buttonGreen: {
+        width: 200,
+        alignSelf: 'center',
+        backgroundColor: 'green',
+        marginBottom: 10,
+    },
+    buttonRed: {
+        width: 200,
+        alignSelf: 'center',
+        backgroundColor: 'red'
     },
     inputFieldTextArea: {
         maxWidth: '95%',

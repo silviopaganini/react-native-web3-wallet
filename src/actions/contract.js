@@ -29,6 +29,7 @@ import {validate} from './api';
 //       }
 //     });
 // });
+//
 
 export const getContract = (from) => async (dispatch) => {
 
