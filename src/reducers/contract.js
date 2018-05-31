@@ -8,7 +8,7 @@ const initialState = new Record({
   name: '',
   symbol: '',
   owner: '',
-  instance: {},
+  instance: null,
 })();
 
 export default (state = initialState, action) => {

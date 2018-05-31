@@ -12,7 +12,7 @@ export const validate = () => async (dispatch, getState) => {
   const { stellar } = getState().user;
   const { transactionHash } = getState().events;
 
-  dispatch({type: LOADING, payload: getState().content.statusValidatingEthereumTransaction});
+  dispatch({type: LOADING, payload: getState().content.data.statusValidatingEthereumTransaction});
 
   try {
     const data = await fetch(`${getAPIURL()}/claim`, {
@@ -28,7 +28,7 @@ export const validate = () => async (dispatch, getState) => {
 
     const payload = await data.json();
     if(payload.error) {
-      dispatch({ type: LOADING, payload: getState().content.errorEthereumTransactionInvalid});
+      dispatch({ type: LOADING, payload: getState().content.data.errorEthereumTransactionInvalid});
       setTimeout(dispatch, 5000, { type: LOADING, payload: null});
       return;
     }
@@ -44,7 +44,7 @@ export const claim = () => async (dispatch, getState) => {
   const { stellar } = getState().user;
   const { transactionHash } = getState().events;
 
-  dispatch({type: LOADING, payload: getState().content.statusValidatingEthereumTransaction});
+  dispatch({type: LOADING, payload: getState().content.data.statusValidatingEthereumTransaction});
 
   try {
     const data = await fetch(`${getAPIURL()}/transfer`, {
@@ -62,7 +62,7 @@ export const claim = () => async (dispatch, getState) => {
 
     if(payload.error) {
       if(payload.error === 1) {
-        dispatch({ type: LOADING, payload: getState().content.errorPaymentAlreadyProcessed});
+        dispatch({ type: LOADING, payload: getState().content.data.errorPaymentAlreadyProcessed});
       } else {
         dispatch({type: LOADING, payload: payload.message});
       }
@@ -77,7 +77,7 @@ export const claim = () => async (dispatch, getState) => {
     dispatch({type: TRANSFER, payload});
     dispatch(getBalance());
     // dispatch(getActivity());
-    dispatch({type: LOADING, payload: getState().content.statusTransferWolloComplete});
+    dispatch({type: LOADING, payload: getState().content.data.statusTransferWolloComplete});
     setTimeout(dispatch, 2000, {
       type: LOADING,
       payload: null,

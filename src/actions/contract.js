@@ -8,7 +8,7 @@ import {
 import {getAPIURL} from '../utils';
 import * as Contract from '../constants/contract';
 import Web3 from '../constants/web3';
-import {getBalance, getActivity} from './eth';
+import {getBalance} from './eth';
 import {validate} from './api';
 
 // const getContractJSON = () => new Promise((resolve) => {
@@ -42,8 +42,6 @@ export const getContract = (from) => async (dispatch) => {
             deployedContract.methods.owner().call()
         ]);
 
-        console.log(results);
-
         dispatch({
             type: CONTRACT_UPDATE,
             payload: {
@@ -70,42 +68,40 @@ export const getContract = (from) => async (dispatch) => {
     }
 };
 
-export const transfer = (address, amount) => async (dispatch, getState) => {
-    const {instance} = getState().contract;
+// export const transfer = (address, amount) => async (dispatch, getState) => {
+//     const {instance} = getState().contract;
+//
+//     dispatch({type: LOADING, payload: getState().content.data.statusWaitingConfirmation});
+//
+//     try {
+//         const transferStatus = await instance.methods.transfer(address, amount, {from: getState().user.coinbase}).send();
+//         if (transferStatus) {
+//             dispatch(getBalance());
+//             dispatch({type: LOADING, payload: 'Transfer Complete'});
+//             setTimeout(dispatch, 2000, {type: LOADING, payload: null});
+//         }
+//
+//     } catch (e) {
+//         dispatch({type: ERROR, payload: {title: 'Submit Tokens Error', message: 'Check console for more info'}});
+//     }
+// };
 
-    dispatch({type: LOADING, payload: getState().content.statusWaitingConfirmation});
-
-    try {
-        const transferStatus = await instance.methods.transfer(address, amount, {from: getState().user.coinbase}).send();
-        if (transferStatus) {
-            dispatch(getBalance());
-            dispatch({type: LOADING, payload: 'Transfer Complete'});
-            setTimeout(dispatch, 2000, {type: LOADING, payload: null});
-        }
-
-    } catch (e) {
-        dispatch({type: ERROR, payload: {title: 'Submit Tokens Error', message: 'Check console for more info'}});
-    }
-};
-
-const validateTransactionWeb3 = () => (dispatch, getState) => new Promise((resolve, reject) => {
+const validateTransactionWeb3 = () => async (dispatch, getState) => new Promise((resolve, reject) => {
     const {transactionHash} = getState().events;
     const {coinbase} = getState().user;
-    Web3.eth.getTransaction(transactionHash, (err, res) => {
-        if (err) {
-            reject(err);
-            return;
-        }
-
+    try {
+        const res = Web3.eth.getTransaction(transactionHash);
         resolve(res.from === coinbase);
-    });
+    } catch (e) {
+        reject(e);
+    }
 });
 
 export const burn = (amount) => async (dispatch, getState) => {
     const {instance} = getState().contract;
     const {coinbase, stellar} = getState().user;
 
-    dispatch({type: LOADING, payload: getState().content.statusWaitingConfirmation});
+    dispatch({type: LOADING, payload: getState().content.data.statusWaitingConfirmation});
 
     try {
 
@@ -124,32 +120,32 @@ export const burn = (amount) => async (dispatch, getState) => {
         const payload = await data.json();
         if (payload.error) {
             dispatch({type: ERROR, payload});
-            dispatch({type: LOADING, payload: getState().content.errorCreatingStellarAccount});
+            dispatch({type: LOADING, payload: getState().content.data.errorCreatingStellarAccount});
             setTimeout(dispatch, 4000, {type: LOADING, payload: null});
             return;
         }
 
         const result = await instance.methods.burn(payload.stellar.value).send();
 
-        if (!result || !result.logs || !result.tx) {
-            dispatch({type: LOADING, payload: getState().content.errorBurningTokens});
+        if (!result || !result.transactionHash) {
+            dispatch({type: LOADING, payload: getState().content.data.errorBurningTokens});
             setTimeout(dispatch, 6000, {type: LOADING, payload: null});
             return;
         }
 
         dispatch({
             type: LOADING,
-            payload: getState().content.statusErc20Burned,
+            payload: getState().content.data.statusErc20Burned,
         });
 
         dispatch({
             type: BURNED,
-            payload: result.tx
+            payload: result.transactionHash
         });
 
         const validateTransaction = await validateTransactionWeb3();
         if (!validateTransaction) {
-            dispatch({type: LOADING, payload: getState().content.errorEthereumTransactionInvalid});
+            dispatch({type: LOADING, payload: getState().content.data.errorEthereumTransactionInvalid});
             setTimeout(dispatch, 4000, {type: LOADING, payload: null});
             return;
         }

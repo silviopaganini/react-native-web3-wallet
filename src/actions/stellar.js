@@ -13,14 +13,14 @@ export const trustAsset = () => async (dispatch, getState) => {
 
   dispatch({
     type: LOADING,
-    payload: getState().content.statusTrustingStellarAsset,
+    payload: getState().content.data.statusTrustingStellarAsset,
   });
 
   try {
     await trustAssetSDK(stellar.pk, keyPair);
     dispatch({
       type: LOADING,
-      payload: getState().content.statusStellarTokenTrusted,
+      payload: getState().content.data.statusStellarTokenTrusted,
     });
 
     dispatch(claim());
@@ -28,7 +28,7 @@ export const trustAsset = () => async (dispatch, getState) => {
   } catch (e) {
     dispatch({
       type: ERROR,
-      payload: getState().content.errorTrustingStellarAsset,
+      payload: getState().content.data.errorTrustingStellarAsset,
     });
 
     setTimeout(dispatch, 6000, { type: LOADING, payload: null});

@@ -1,7 +1,12 @@
-import React, {Component, Fragment} from 'react';
+import React, {Component} from 'react';
 import {connect} from 'react-redux';
-import {Text, Button} from 'react-native-elements';
-import {StyleSheet, View, TextInput, Linking} from 'react-native';
+import {
+    Button,
+    FormLabel,
+    FormInput,
+    FormValidationMessage
+} from 'react-native-elements';
+import {Text, StyleSheet, View, ScrollView, Linking} from 'react-native';
 import {createStellarAccount} from '../../actions/stellar';
 import {
     getWallet,
@@ -10,18 +15,28 @@ import {
     // getActivity
 } from '../../actions/eth';
 import {getContract, transfer, burn} from '../../actions/contract';
+import {loadContent} from '../../actions/content';
 import Loading from '../loading';
+import Network from '../network';
 
 class App extends Component {
 
   state = {
       sk: '0xd34428068334f2899909ebfac2b0098ad60755dc2b2bbcadcb18963d8ff51c2d',
-      burnInput: '50'
+      burnInput: '5',
+      errorPrivateKey: false,
+  }
+
+  componentDidMount() {
+      this.props.loadContent();
   }
 
   onImportKey = () => {
-      console.log('on import key');
       const {sk} = this.state;
+      if (sk === '') {
+          this.setState({errorPrivateKey: true});
+          return;
+      }
       this.props.userLogin(sk);
   }
 
@@ -45,80 +60,82 @@ class App extends Component {
   }
 
   render() {
-      const {sk, burnInput} = this.state;
+      const {sk, burnInput, errorPrivateKey} = this.state;
       const {
           loading,
           contract,
           user,
           events,
+          contentReady,
       } = this.props;
 
-      console.log(loading);
+      if (!contentReady) {
+          return (
+              <View style={styles.loading}>
+                  <Text>Loading</Text>
+              </View>
+          );
+      }
 
       return (
-          <View style={styles.container}>
+          <ScrollView style={styles.container}>
+              <Network />
+
               {contract.instance &&
-                  <View>
-                      <Text h4>ERC20 Token Props ({contract.symbol})</Text>
+                  <View style={styles.sectionView}>
+                      <Text style={styles.sectionHeading}>ERC20 Token Props ({contract.symbol})</Text>
                       <View>
-                          <Text h5>Address: {contract.address}</Text>
+                          <Text>Address: {contract.address}</Text>
                           <Text>Token Name: {contract.name}</Text>
                           <Text>Supply:{contract.supply}</Text>
                       </View>
                   </View>
               }
 
-              <View>
-                  <Text h4>User details</Text>
-                  {user.coinbase && <Fragment>
-                      <View>
-                          <Text h5>Address: {user.coinbase}</Text>
+              <View style={styles.sectionView}>
+                  {user.coinbase &&
+                      <View style={styles.subSectionView}>
+                          <Text style={styles.sectionHeading}>User details</Text>
+                          <Text>Address: {user.coinbase}</Text>
                           <Text>Current Wallet Token Balance: {user.balance}</Text>
-                          <Button disabled={user.coinbase === ''} onPress={this.props.getBalance} title="Refresh Balance" />
                       </View>
-                  </Fragment>}
+                  }
 
-                  {user.balance > 0 && user.coinbase.toLowerCase() !== contract.owner.toLowerCase() && <Fragment>
-                      <View>
-                          <Text h4>Claim Stellar tokens</Text>
+                  {user.balance > 0 && user.coinbase.toLowerCase() !== contract.owner.toLowerCase() &&
+                      <View style={styles.subSectionView}>
+                          <Text style={styles.subSectionHeading}>Claim Stellar tokens</Text>
                           <Text>Total supply and user supply should decrease</Text>
-                          <TextInput onChangeText={text => this.setState({burnInput: text.toString()})} name="burnInput" placeholder={user.balance.toString()} value={burnInput} />
-                          <Button disabled={user.coinbase === ''} onPress={this.onSubmitBurn} title="Claim Tokens"/>
+                          <FormLabel>Amount of Tokens to burn</FormLabel>
+                          <FormInput value={burnInput} onChangeText={text => this.setState({burnInput: text.toString()})}/>
+                          <Button titleStyle={styles.buttonTitleStyle} buttonStyle={styles.buttonStyle} disabled={user.coinbase === ''} onPress={this.onSubmitBurn} title="Claim Tokens"/>
                       </View>
-                  </Fragment>}
+                  }
 
-                  {user.stellar && <Fragment>
-                      <View>
-                          <Text h5>Transaction Hash</Text>
+                  {user.stellar &&
+                      <View style={styles.subSectionView}>
+                          <Text style={styles.subSectionHeading}>Transaction Hash</Text>
                           <Text>{events.get('transactionHash')}</Text>
-                          <Text h4>Stellar Account</Text>
+                          <Text style={styles.subSectionHeading}>Stellar Account</Text>
                           <Text>Secret Key: {user.stellar.sk}</Text>
-                          <Text>Public Key: <Button onPress={() => {
+                          <Text>Public Key: {user.stellar.pk}</Text>
+                          <Button titleStyle={styles.buttonTitleStyle} buttonStyle={styles.buttonStyle} onPress={() => {
                               Linking.openURL(`https://horizon-testnet.stellar.org/accounts/${user.stellar.pk}`);
-                          }} title={user.stellar.pk} />
-                          </Text>
+                          }} title="View on Stellar Network" />
                       </View>
-                  </Fragment>}
+                  }
 
+                  {!user.coinbase &&
+                      <View style={styles.subSectionView}>
+                          <FormLabel>Input your private key</FormLabel>
+                          <FormInput value={sk} onChangeText={this.onChangeTextField}/>
+                          {errorPrivateKey && <FormValidationMessage>Field required</FormValidationMessage>}
+                          <Button titleStyle={styles.buttonTitleStyle} buttonStyle={styles.buttonStyle} onPress={this.onImportKey} title="Import" />
+                      </View>
+                  }
               </View>
 
-              {!user.coinbase && <Fragment>
-                  <Text>Import your Private key</Text>
-                  <TextInput
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      defaultValue="0x"
-                      style={{height: 40, padding: 10, borderColor: 'black', borderWidth: 1, width: '100%'}}
-                      multiline={true}
-                      numberOfLines={2}
-                      value={sk}
-                      onChangeText={this.onChangeTextField}
-                  />
-                  <Button onPress={this.onImportKey} title="Import" />
-              </Fragment>}
-
               <Loading message={loading} />
-          </View>
+          </ScrollView>
       );
   }
 }
@@ -127,21 +144,72 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#fff',
-        justifyContent: 'center',
-        padding: 20
+        padding: 10,
     },
+    sectionView: {
+        margin: 0,
+        marginBottom: 20,
+        padding: 0,
+    },
+    subSectionView: {
+        margin: 0,
+        padding: 0,
+        marginBottom: 20,
+        left: 0,
+    },
+    sectionHeading: {
+        fontSize: 20,
+        fontWeight: '600'
+    },
+    subSectionHeading: {
+        fontSize: 16,
+        fontWeight: '600',
+        marginTop: 20,
+        marginBottom: 20,
+    },
+    loading: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    inputPrivateKey: {
+        height: 40,
+        padding: 10,
+        borderColor: 'black',
+        marginTop: 20,
+        marginBottom: 20,
+        borderWidth: 1,
+        width: '100%'
+    },
+    buttonStyle: {
+        borderColor: 'transparent',
+        borderWidth: 0,
+        borderRadius: 10,
+        paddingTop: 10,
+        paddingLeft: 15,
+        paddingRight: 15,
+        paddingBottom: 10,
+        margin: 0,
+        marginTop: 20,
+        maxWidth: 300,
+        backgroundColor: '#003278',
+    },
+    buttonTitleStyle: {
+        fontWeight: '600',
+    }
 });
 
-export default connect(({user, events, contract}) => ({
+export default connect(({user, events, contract, content}) => ({
     user,
     events,
     contract,
+    contentReady: content.get('loaded'),
     loading: events.get('loading')
 }), {
     getWallet,
     userLogin,
     getBalance,
-    // getActivity,
+    loadContent,
     getContract,
     transfer,
     burn,

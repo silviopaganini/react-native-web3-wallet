@@ -4,7 +4,7 @@ import Web3 from '../constants/web3';
 import {
     USER_BALANCE,
     USER_LOGIN,
-    ACTIVITY,
+    // ACTIVITY,
     ERROR,
     LOADING
 } from '../constants/action-types';
@@ -68,7 +68,7 @@ export const userLogin = (privateKey) => async (dispatch) => {
 //     try {
 //         const wallet = await Web3.eth.getAccounts();
 //         if (wallet.length === 0) {
-//             dispatch({type: LOADING, payload: getState().content.errorMetamaskLocked});
+//             dispatch({type: LOADING, payload: getState().content.data.errorMetamaskLocked});
 //             timeout = setTimeout(dispatch, 1500, getWallet());
 //             return;
 //         }
@@ -99,7 +99,7 @@ export const userLogin = (privateKey) => async (dispatch) => {
 //       }
 //
 //       if(!accounts[0]) {
-//         dispatch({type: LOADING, payload: getState().content.errorMetamaskLocked});
+//         dispatch({type: LOADING, payload: getState().content.data.errorMetamaskLocked});
 //         clearTimeout(timeout);
 //         timeout = setTimeout(dispatch, 1500, getWallet());
 //         return;

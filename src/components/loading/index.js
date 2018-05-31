@@ -1,18 +1,16 @@
 import React from 'react';
-import {StyleSheet, View, Text} from 'react-native';
+import {StyleSheet, View, Modal, Text} from 'react-native';
 import PropTypes from 'prop-types';
 
-const Loading = ({message}) => {
-    if (!message) {
-        return null;
-    }
-
-    return (
-        <View style={styles.container}>
-            <Text style={styles.h1}>{message}</Text>
+const Loading = ({message}) => (
+    <Modal transparent visible={!!message} style={styles.container}>
+        <View style={styles.inner}>
+            <View style={styles.innerContainer}>
+                <Text style={styles.h1}>{message}</Text>
+            </View>
         </View>
-    );
-};
+    </Modal>
+);
 
 Loading.propTypes = {
     message: PropTypes.string
@@ -20,20 +18,25 @@ Loading.propTypes = {
 
 const styles = StyleSheet.create({
     container: {
-      zIndex: 1000,
+        flex: 1,
+    },
+    inner: {
         backgroundColor: 'rgba(0, 0, 0, .8)',
         justifyContent: 'center',
-        position: 'absolute',
-        width: '100%',
-        height: '100%',
-        top: 0,
-        left: 0,
+        flex: 1,
+        padding: 20,
+    },
+    innerContainer: {
+        backgroundColor: 'white',
+        justifyContent: 'center',
+        alignItems: 'center'
     },
     h1: {
         fontSize: 20,
         fontWeight: 'bold',
         padding: 10,
-        color: 'white'
+        justifyContent: 'center',
+        color: 'black'
     }
 });
 

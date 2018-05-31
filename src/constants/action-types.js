@@ -9,3 +9,4 @@ export const CONTRACT_UPDATE = 'CONTRACT_UPDATE';
 export const LOADING = 'LOADING';
 export const STELLAR = 'STELLAR';
 export const BURNED = 'BURNED';
+export const CONTENT = 'CONTENT';
