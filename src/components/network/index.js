@@ -38,7 +38,6 @@ const styles = StyleSheet.create({
         paddingLeft: 20,
         paddingRight: 20,
         marginTop: 30,
-        marginBottom: 20,
         maxWidth: 185,
     },
     copy: {

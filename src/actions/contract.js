@@ -47,7 +47,7 @@ export const getContract = (from) => async (dispatch) => {
             payload: {
                 owner: results[3],
                 instance: deployedContract,
-                address: deployedContract.address,
+                address: Contract.ADDRESS,
                 abi: deployedContract.abi,
                 supply: Web3.utils.toDecimal(results[0]),
                 name: results[1],

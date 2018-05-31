@@ -9,6 +9,7 @@ import {
     LOADING
 } from '../constants/action-types';
 import {getContract} from './contract';
+import {generateAddressFromSeed} from '../utils';
 
 let timeout;
 
@@ -40,14 +41,15 @@ export const getBalance = () => async (dispatch, getState) => {
 //     }
 // };
 
-export const userLogin = (privateKey) => async (dispatch) => {
+export const userLogin = (mnemonic, pk) => async (dispatch) => {
     clearTimeout(timeout);
     timeout = 0;
 
     dispatch({type: LOADING, payload: null});
 
     try {
-        const account = Web3.eth.accounts.privateKeyToAccount(privateKey);
+        const address = generateAddressFromSeed(mnemonic, pk);
+        const account = Web3.eth.accounts.privateKeyToAccount(address.privateKey);
         const coinbase = account.address;
 
         dispatch({

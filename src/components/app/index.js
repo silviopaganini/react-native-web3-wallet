@@ -22,9 +22,10 @@ import Network from '../network';
 class App extends Component {
 
   state = {
-      sk: '0xd34428068334f2899909ebfac2b0098ad60755dc2b2bbcadcb18963d8ff51c2d',
       burnInput: '5',
-      errorPrivateKey: false,
+      mnemonic: '',
+      pk: '',
+      errorImportingAccount: false,
   }
 
   componentDidMount() {
@@ -32,16 +33,20 @@ class App extends Component {
   }
 
   onImportKey = () => {
-      const {sk} = this.state;
-      if (sk === '') {
-          this.setState({errorPrivateKey: true});
+      const {mnemonic, pk} = this.state;
+      if (pk === '' || mnemonic === '') {
+          this.setState({errorImportingAccount: true});
           return;
       }
-      this.props.userLogin(sk);
+      this.props.userLogin(mnemonic, pk);
   }
 
-  onChangeTextField = (text) => {
-      this.setState({sk: text.substr(0, 2) !== '0x' ? `0x${text}` : text});
+  onChangePublicKey = (text) => {
+      this.setState({pk: text.substr(0, 2) !== '0x' ? `0x${text}` : text});
+  }
+
+  onChangeMnemonic = (mnemonic) => {
+      this.setState({mnemonic});
   }
 
   onSubmit = (e) => {
@@ -60,7 +65,7 @@ class App extends Component {
   }
 
   render() {
-      const {sk, burnInput, errorPrivateKey} = this.state;
+      const {mnemonic, pk, burnInput, errorImportingAccount} = this.state;
       const {
           loading,
           contract,
@@ -83,7 +88,7 @@ class App extends Component {
 
               {contract.instance &&
                   <View style={styles.sectionView}>
-                      <Text style={styles.sectionHeading}>ERC20 Token Props ({contract.symbol})</Text>
+                      <Text style={[styles.sectionHeading, styles.tokenTitle]}>ERC20 Token Props ({contract.symbol})</Text>
                       <View>
                           <Text>Address: {contract.address}</Text>
                           <Text>Token Name: {contract.name}</Text>
@@ -126,10 +131,29 @@ class App extends Component {
 
                   {!user.coinbase &&
                       <View style={styles.subSectionView}>
-                          <FormLabel>Input your private key</FormLabel>
-                          <FormInput value={sk} onChangeText={this.onChangeTextField}/>
-                          {errorPrivateKey && <FormValidationMessage>Field required</FormValidationMessage>}
-                          <Button titleStyle={styles.buttonTitleStyle} buttonStyle={styles.buttonStyle} onPress={this.onImportKey} title="Import" />
+                          <Text style={styles.subSectionHeading}>Let's import your account</Text>
+                          <FormLabel>Fill in your 12 memorable words (seed)</FormLabel>
+                          <FormInput
+                              containerStyle={styles.inputTextArea}
+                              inputStyle={styles.inputFieldTextArea}
+                              multiline={true}
+                              numberOfLines={3}
+                              value={mnemonic}
+                              onChangeText={this.onChangeMnemonic}
+                          />
+
+                          <FormLabel>Fill in the Public address of your wallet</FormLabel>
+                          <FormInput
+                              containerStyle={styles.inputTextArea}
+                              inputStyle={styles.inputFieldTextArea}
+                              value={pk}
+                              multiline={true}
+                              numberOfLines={3}
+                              onChangeText={this.onChangePublicKey}
+                          />
+
+                          {errorImportingAccount && <FormValidationMessage>All fields required</FormValidationMessage>}
+                          <Button titleStyle={styles.buttonTitleStyle} buttonStyle={[styles.buttonStyle, styles.importAccountButton]} onPress={this.onImportKey} title="Import" />
                       </View>
                   }
               </View>
@@ -145,6 +169,23 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#fff',
         padding: 10,
+    },
+    tokenTitle: {
+        marginTop: 20,
+        fontSize: 22,
+    },
+    inputTextArea: {
+        marginBottom: 20,
+    },
+    inputFieldTextArea: {
+        maxWidth: '95%',
+        marginTop: 8,
+        paddingBottom: 8,
+        color: 'black'
+    },
+    importAccountButton: {
+        alignSelf: 'center',
+        width: 200
     },
     sectionView: {
         margin: 0,
