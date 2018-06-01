@@ -1,6 +1,8 @@
 import React, {Component} from 'react';
-import Web3 from '../../constants/web3';
-import {View, StyleSheet, Text} from 'react-native';
+import {connect} from 'react-redux';
+import {View, StyleSheet} from 'react-native';
+import {Dropdown} from 'react-native-material-dropdown';
+import {changeNetwork} from '../../actions/contract';
 
 const colors = {
     blue: '#2465e1',
@@ -16,17 +18,22 @@ const colors = {
 const getNetwork = (netId) => {
     switch (netId) {
         case '1':
-            return {id: netId, color: colors.forest, copy: 'Mainet'};
+        case 'mainnet':
+            return {label: 'mainnet', id: netId, color: colors.forest, copy: 'Mainet'};
         case '2':
-            return {id: netId, color: colors.darkGrey, copy: 'Morden (deprecated) test network'};
+        case 'morden':
+            return {label: 'morden', id: netId, color: colors.darkGrey, copy: 'Morden (deprecated) test network'};
         case '3':
-            return {id: netId, color: colors.darkRed, copy: 'Ropsten test network.'};
+        case 'ropsten':
+            return {label: 'ropsten', id: netId, color: colors.darkRed, copy: 'Ropsten test network.'};
         case '4':
-            return {id: netId, color: colors.gold, copy: 'Rinkeby test network.'};
+        case 'rinkeby':
+            return {label: 'rinkeby', id: netId, color: colors.gold, copy: 'Rinkeby test network.'};
         case '42':
-            return {id: netId, color: colors.purple, copy: 'Kovan test network.'};
+        case 'kovan':
+            return {label: 'kovan', id: netId, color: colors.purple, copy: 'Kovan test network.'};
         default:
-            return {id: netId, color: colors.blue, copy: 'Private network.'};
+            return {label: 'local', id: netId, color: colors.blue, copy: 'Private network.'};
     }
 };
 
@@ -42,29 +49,48 @@ const styles = StyleSheet.create({
     },
     copy: {
         color: 'white'
+    },
+    dropdown: {
+        width: 200,
+        marginLeft: 20,
+        marginBottom: 20,
     }
 });
 
-export default class Network extends Component {
-  state = {
-      network: ''
-  }
+class Network extends Component {
 
-  async componentDidMount() {
-      try {
-          const netId = await Web3.eth.net.getId();
-          this.setState({network: getNetwork(netId.toString())});
-      } catch (e) {
-          console.log(e);
-      }
-  }
+    onChangeText = (network) => {
+        this.props.changeNetwork(network);
+    }
 
-  render () {
-      const backgroundColor = {backgroundColor: this.state.network.color};
-      return (
-          <View style={[styles.container, backgroundColor]}>
-              <Text style={styles.copy}>{this.state.network.copy}</Text>
-          </View>
-      );
-  }
+    render () {
+        const network = getNetwork(this.props.network);
+
+        const data = [{
+            label: 'Private network', value: 'local',
+        }, {
+            label: 'Ropsten network', value: 'ropsten',
+        }
+        ];
+
+        return (
+            <View style={[styles.container]}>
+                <Dropdown
+                    containerStyle={[styles.dropdown]}
+                    textColor={network.color}
+                    value={network.label}
+                    dropdownMargins={{min: 15, max: 30}}
+                    onChangeText={this.onChangeText}
+                    data={data}
+                />
+            </View>
+        );
+    }
 }
+
+export default connect(({contract, web3}) => ({
+    network: contract.get('network'),
+    web3: web3.instance
+}), {
+    changeNetwork
+})(Network);

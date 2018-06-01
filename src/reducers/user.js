@@ -8,7 +8,8 @@ import {
 } from '../constants/action-types';
 
 const initialState = new Record({
-  coinbase: '',
+  coinbase: null,
+  privateKey: null,
   balance: null,
   supply: null,
   loggedIn: false,
@@ -20,7 +21,8 @@ export default (state = initialState, action) => {
   case USER_LOGOUT:
     return state
       .set('loggedIn', false)
-      .set('coinbase', '');
+      .set('privateKey', null)
+      .set('coinbase', null);
 
   case STELLAR:
     return state
@@ -33,7 +35,8 @@ export default (state = initialState, action) => {
   case USER_LOGIN:
     return state
       .set('loggedIn', true)
-      .set('coinbase', action.payload);
+      .set('privateKey', action.payload.privateKey)
+      .set('coinbase', action.payload.coinbase);
 
   default:
     return state;

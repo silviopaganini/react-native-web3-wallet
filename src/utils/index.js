@@ -33,7 +33,7 @@ export const generateAddressFromSeed = (seed, publicAddress) => {
     while (account.address.toLowerCase() !== publicAddress.toLowerCase()) {
         const wallet = hdwallet.derivePath(wallet_hdpath + counter).getWallet();
         const address = '0x' + wallet.getAddress().toString('hex');
-        const privateKey = '0x' + wallet.getPrivateKey().toString('hex');
+        const privateKey = wallet.getPrivateKey().toString('hex');
         account = {address: address, privateKey: privateKey};
         counter++;
     }

@@ -10,3 +10,4 @@ export const LOADING = 'LOADING';
 export const STELLAR = 'STELLAR';
 export const BURNED = 'BURNED';
 export const CONTENT = 'CONTENT';
+export const NETWORK_CHANGE = 'NETWORK_CHANGE'

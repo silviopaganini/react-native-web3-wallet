@@ -7,16 +7,13 @@ import {
     FormValidationMessage
 } from 'react-native-elements';
 import {Text, Modal, StyleSheet, View, ScrollView, Linking} from 'react-native';
-import Web3 from '../../constants/web3';
 import {utils} from 'web3';
 import {createStellarAccount} from '../../actions/stellar';
 import {
-    getWallet,
     userLogin,
-    getBalance,
     // getActivity
 } from '../../actions/eth';
-import {getContract, transfer, burn} from '../../actions/contract';
+import {transfer, burn, changeNetwork} from '../../actions/contract';
 import {loadContent} from '../../actions/content';
 import Loading from '../loading';
 import Network from '../network';
@@ -25,8 +22,8 @@ class App extends Component {
 
   state = {
       burnInput: '5',
-      mnemonic: '',
-      pk: '',
+      mnemonic: 'elephant merit raven monkey path outer paddle bounce exist fringe pet dry',
+      pk: '0x798D23d6a84b2EF7d23c4A25735ED55B72072c24',
       errorImportingAccount: false,
       modal: {
           visible: false,
@@ -37,6 +34,7 @@ class App extends Component {
 
   componentDidMount() {
       this.props.loadContent();
+      this.props.changeNetwork('ropsten');
   }
 
   onImportKey = () => {
@@ -48,6 +46,12 @@ class App extends Component {
       this.props.userLogin(mnemonic, pk);
   }
 
+  componentWillReceiveProps(nextProps) {
+      if ((nextProps.web3 !== this.props.web3) && this.props.contract.instance) {
+          this.onImportKey();
+      }
+  }
+
   onChangePublicKey = (text) => {
       this.setState({pk: text.substr(0, 2) !== '0x' ? `0x${text}` : text});
   }
@@ -57,7 +61,7 @@ class App extends Component {
   }
 
   onSubmitBurn = async () => {
-      const {contract} = this.props;
+      const {contract, user} = this.props;
       const {burnInput} = this.state;
 
       this.setState({
@@ -68,8 +72,8 @@ class App extends Component {
       });
 
       try {
-          const gasPrice = await Web3.eth.getGasPrice();
-          const estimatedGas = await contract.instance.methods.burn(burnInput).estimateGas();
+          const gasPrice = await this.props.web3.eth.getGasPrice();
+          const estimatedGas = await contract.instance.methods.burn(burnInput).estimateGas({from: user.coinbase});
           this.setState({
               estimatedCost: `${utils.fromWei(String(estimatedGas * gasPrice), 'ether')} ETH`,
           });
@@ -107,6 +111,7 @@ class App extends Component {
           contract,
           user,
           events,
+          web3,
           contentReady,
       } = this.props;
 
@@ -120,7 +125,7 @@ class App extends Component {
 
       return (
           <ScrollView style={styles.container}>
-              <Network />
+              {contract.network && <Network />}
 
               {contract.instance &&
                   <View style={styles.sectionView}>
@@ -165,32 +170,32 @@ class App extends Component {
                       </View>
                   }
 
-                  {!user.coinbase &&
-                      <View style={styles.subSectionView}>
-                          <Text style={styles.subSectionHeading}>Let's import your account</Text>
-                          <FormLabel>Fill in your 12 memorable words (seed)</FormLabel>
-                          <FormInput
-                              containerStyle={styles.inputTextArea}
-                              inputStyle={styles.inputFieldTextArea}
-                              multiline={true}
-                              numberOfLines={3}
-                              value={mnemonic}
-                              onChangeText={this.onChangeMnemonic}
-                          />
+                  {!user.coinbase && web3 &&
+                          <View style={styles.subSectionView}>
+                              <Text style={styles.subSectionHeading}>Let's import your account</Text>
+                              <FormLabel>Fill in your 12 memorable words (seed)</FormLabel>
+                              <FormInput
+                                  containerStyle={styles.inputTextArea}
+                                  inputStyle={styles.inputFieldTextArea}
+                                  multiline={true}
+                                  numberOfLines={3}
+                                  value={mnemonic}
+                                  onChangeText={this.onChangeMnemonic}
+                              />
 
-                          <FormLabel>Fill in the Public address of your wallet</FormLabel>
-                          <FormInput
-                              containerStyle={styles.inputTextArea}
-                              inputStyle={styles.inputFieldTextArea}
-                              value={pk}
-                              multiline={true}
-                              numberOfLines={3}
-                              onChangeText={this.onChangePublicKey}
-                          />
+                              <FormLabel>Fill in the Public address of your wallet</FormLabel>
+                              <FormInput
+                                  containerStyle={styles.inputTextArea}
+                                  inputStyle={styles.inputFieldTextArea}
+                                  value={pk}
+                                  multiline={true}
+                                  numberOfLines={3}
+                                  onChangeText={this.onChangePublicKey}
+                              />
 
-                          {errorImportingAccount && <FormValidationMessage>All fields required</FormValidationMessage>}
-                          <Button titleStyle={styles.buttonTitleStyle} buttonStyle={[styles.buttonStyle, styles.importAccountButton]} onPress={this.onImportKey} title="Import" />
-                      </View>
+                              {errorImportingAccount && <FormValidationMessage>All fields required</FormValidationMessage>}
+                              <Button titleStyle={styles.buttonTitleStyle} buttonStyle={[styles.buttonStyle, styles.importAccountButton]} onPress={this.onImportKey} title="Import" />
+                          </View>
                   }
               </View>
 
@@ -198,21 +203,21 @@ class App extends Component {
               <Modal animationType="slide" visible={this.state.modal.visible}>
                   <View style={styles.modalConfirm}>
                       {this.state.modal.message === 'confirm' &&
-                          <Fragment>
-                              <Text style={styles.modalTitle}>The estimated gas for this transaction is</Text>
-                              <Text style={[styles.modalTitle, styles.modalTitleCost]}>{estimatedCost}</Text>
-                              <Text>Are you sure you want to burn your tokens? They will be automatically converted into Stellar Wollo Tokens</Text>
-                              <View>
-                                  <Button titleStyle={styles.buttonTitleStyle} buttonStyle={[styles.buttonStyle, styles.buttonGreen]} onPress={this.onConfirmedSubmitBurn} title="Let's do this" />
-                                  <Button titleStyle={styles.buttonTitleStyle} buttonStyle={[styles.buttonStyle, styles.buttonRed]} onPress={this.closeModal} title="No" />
-                              </View>
-                          </Fragment>
+                              <Fragment>
+                                  <Text style={styles.modalTitle}>The estimated gas for this transaction is</Text>
+                                  <Text style={[styles.modalTitle, styles.modalTitleCost]}>{estimatedCost}</Text>
+                                  <Text>Are you sure you want to burn your tokens? They will be automatically converted into Stellar Wollo Tokens</Text>
+                                  <View>
+                                      <Button titleStyle={styles.buttonTitleStyle} buttonStyle={[styles.buttonStyle, styles.buttonGreen]} onPress={this.onConfirmedSubmitBurn} title="Let's do this" />
+                                      <Button titleStyle={styles.buttonTitleStyle} buttonStyle={[styles.buttonStyle, styles.buttonRed]} onPress={this.closeModal} title="No" />
+                                  </View>
+                              </Fragment>
                       }
 
                       {this.state.modal.message !== 'confirm' && this.state.modal.message !== '' &&
-                          <Fragment>
-                              <Text>{this.state.modal.message}</Text>
-                          </Fragment>
+                              <Fragment>
+                                  <Text>{this.state.modal.message}</Text>
+                              </Fragment>
                       }
                   </View>
               </Modal>
@@ -321,18 +326,17 @@ const styles = StyleSheet.create({
     }
 });
 
-export default connect(({user, events, contract, content}) => ({
+export default connect(({user, web3, events, contract, content}) => ({
     user,
     events,
     contract,
+    web3: web3.instance,
     contentReady: content.get('loaded'),
     loading: events.get('loading')
 }), {
-    getWallet,
     userLogin,
-    getBalance,
     loadContent,
-    getContract,
+    changeNetwork,
     transfer,
     burn,
     createStellarAccount
