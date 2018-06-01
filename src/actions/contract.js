@@ -1,4 +1,3 @@
-import CryptoJS from 'crypto-js';
 import Tx from 'ethereumjs-tx';
 import {
     ERROR,
@@ -11,26 +10,6 @@ import {getAPIURL} from '../utils';
 import Contract from '../constants/contract';
 import {getBalance} from './eth';
 import {validate} from './api';
-
-// const getContractJSON = () => new Promise((resolve) => {
-//     web3.eth.net.getId((err, netId) => {
-//       if(err) {
-//         reject(err);
-//         return;
-//       }
-//
-//       switch(netId.toString()) {
-//       case '3':
-//         resolve(require('../contracts/ropsten/WolloToken.json'));
-//         return;
-//
-//       default:
-//         resolve(require('../contracts/local/WolloToken.json'));
-//         return;
-//       }
-//     });
-// });
-//
 
 export const getContract = () => async (dispatch, getState) => {
 
@@ -95,8 +74,36 @@ const validateTransactionWeb3 = () => async (dispatch, getState) => new Promise(
     }
 });
 
+const waitConfirmations = (web3, dispatch, serializedTx, error) => new Promise(async (resolve, reject) => {
+    let transactionHash;
+    await web3.eth.sendSignedTransaction(serializedTx)
+        .on('transactionHash', (hash) => {
+            transactionHash = hash;
+            dispatch({type: LOADING, payload: `Transaction Hash: ${hash}\n\nWaiting for network confirmations`});
+        })
+        .on('receipt', (receipt) => {
+            dispatch({type: LOADING, payload: `Transaction Receipt: ${receipt.transactionHash}`});
+            return receipt;
+        })
+        .on('confirmation', function (confirmationNumber) {
+            if (confirmationNumber >= 7) {
+                this.off('confirmation');
+                resolve(transactionHash);
+                return;
+            }
+
+            const num = !isNaN(confirmationNumber) ? confirmationNumber : 0;
+            // console.log(102, confirmationNumber, receipt);
+            dispatch({type: LOADING, payload: `Network confirmations: ${num}`});
+        })
+        .on('error', (e) => {
+            console.log('error', e);
+            reject(error);
+        });
+});
+
 export const burn = (amount) => async (dispatch, getState) => {
-    const {address} = getState().contract;
+    const {address, instance} = getState().contract;
     const {coinbase, stellar, privateKey} = getState().user;
     const web3 = getState().web3.instance;
 
@@ -125,56 +132,25 @@ export const burn = (amount) => async (dispatch, getState) => {
         }
 
         const bufferPrivateKey = new Buffer(privateKey, 'hex');
-
-        console.log(address);
-
-        const functionName = 'burn';
-        const types = ['uint256'];
-        const args = [amount];
-        const fullName = functionName + '(' + types.join() + ')';
-        const signature = CryptoJS.SHA3(fullName, {outputLength: 256}).toString(CryptoJS.enc.Hex).slice(0, 8);
-        const dataHex = signature + web3.eth.abi.encodeParameters(types, args);
-        const data = '0x' + dataHex;
-        // console.log(99, dataHex)
+        const data = instance.methods.burn(amount).encodeABI();
 
         const rawTx = {
             nonce: web3.utils.toHex(await web3.eth.getTransactionCount(coinbase)),
-            gasPrice: '0x09184e72a000',
-            gasLimit: '0x2710',
-            // gasPrice: web3.utils.toHex(await this.props.web3.eth.getGasPrice()),
-            // gasLimit: web3.utils.toHex(10721975),
-            value: '0x00',
+            gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
+            gasLimit: web3.utils.toHex(10721975),
+            value: web3.utils.toHex(0),
             to: address,
             from: coinbase,
             data
         };
 
-        console.log(rawTx);
-
         const tx = new Tx(rawTx);
         tx.sign(bufferPrivateKey);
         const serializedTx = '0x' + tx.serialize().toString('hex');
 
-        const result = await web3.eth.sendSignedTransaction(serializedTx)
-            .on('transactionHash', (hash) => {
-                console.log(hash);
-                dispatch({type: LOADING, payload: `Transaction Hash: ${hash}\n\nWaiting for network confirmations`});
-            })
-            .on('receipt', (receipt) => {
-                // console.log(101, receipt);
-                dispatch({type: LOADING, payload: `Transaction Receipt: ${receipt}`});
-                return receipt;
-            })
-            .on('confirmation', (confirmationNumber, receipt) => {
-                console.log(102, confirmationNumber, receipt);
-                dispatch({type: LOADING, payload: `Network confirmations: ${confirmationNumber || 0}`});
-            })
-            .on('error', (e) => {
-                console.log('error', e);
-                return new Error(getState().content.data.errorBurningTokens);
-            });
+        const transactionHash = await waitConfirmations(web3, dispatch, serializedTx, getState().content.data.errorBurningTokens);
 
-        if (!result || !result.transactionHash) {
+        if (!transactionHash) {
             dispatch({type: LOADING, payload: getState().content.data.errorBurningTokens});
             setTimeout(dispatch, 6000, {type: LOADING, payload: null});
             return;
@@ -187,7 +163,7 @@ export const burn = (amount) => async (dispatch, getState) => {
 
         dispatch({
             type: BURNED,
-            payload: result.transactionHash
+            payload: transactionHash
         });
 
         const validateTransaction = await validateTransactionWeb3();
