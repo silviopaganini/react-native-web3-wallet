@@ -8,7 +8,6 @@ import {
 } from 'react-native-elements';
 import {Text, Modal, StyleSheet, View, ScrollView, Linking} from 'react-native';
 import {utils} from 'web3';
-import {createStellarAccount} from '../../actions/stellar';
 import {
     userLogin,
     // getActivity
@@ -91,7 +90,6 @@ class App extends Component {
 
   onConfirmedSubmitBurn = () => {
       this.closeModal();
-      this.props.createStellarAccount();
       this.props.burn(Number(this.state.burnInput));
   }
 
@@ -339,6 +337,5 @@ export default connect(({user, web3, events, contract, content}) => ({
     changeNetwork,
     transfer,
     burn,
-    createStellarAccount
 },
 )(App);

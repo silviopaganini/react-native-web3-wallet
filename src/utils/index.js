@@ -1,9 +1,9 @@
-import StellarSdk from 'stellar-sdk';
+import Stellar from '@pigzbe/react-native-stellar-sdk';
 import bip39 from 'bip39';
 import hdkey from 'ethereumjs-wallet/hdkey';
 
 export const getAPIURL = () => {
-    const env = 'local';
+    const env = 'staging';
     switch (env) {
         case 'local':
             return 'http://localhost:5001';
@@ -14,15 +14,18 @@ export const getAPIURL = () => {
     }
 };
 
-export const createStellarKeyPair = () => {
-    const pair = StellarSdk.Keypair.random();
-    const sk = pair.secret();
-    const pk = pair.publicKey();
+export const createStellarKeyPair = () => new Promise(async (resolve, reject) => {
+    try {
+        const keypair = await Stellar.Keypair.randomAsync();
+        const pk = keypair.publicKey();
+        const sk = keypair.secret();
+        resolve({sk, pk});
+    } catch (e) {
+        reject(e);
+    }
+});
 
-    return {sk, pk};
-};
-
-export const getKeyPair = secretKey => StellarSdk.Keypair.fromSecret(secretKey);
+export const getKeyPair = secretKey => Stellar.Keypair.fromSecret(secretKey);
 
 export const generateAddressFromSeed = (seed, publicAddress) => {
     const hdwallet = hdkey.fromMasterSeed(bip39.mnemonicToSeed(seed));

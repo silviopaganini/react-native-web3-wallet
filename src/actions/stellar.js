@@ -1,38 +1,34 @@
-import { createStellarKeyPair, getKeyPair } from '../utils';
-import { trustAsset as trustAssetSDK } from '../constants/stellar';
-import { claim } from './api';
-import { STELLAR, LOADING, ERROR } from '../constants/action-types';
-
-export const createStellarAccount = () => dispatch => {
-  dispatch({type: STELLAR, payload: createStellarKeyPair()});
-};
+import {getKeyPair} from '../utils';
+import {trustAsset as trustAssetSDK} from '../constants/stellar';
+import {claim} from './api';
+import {STELLAR, LOADING, ERROR} from '../constants/action-types';
 
 export const trustAsset = () => async (dispatch, getState) => {
-  const { stellar } = getState().user;
-  const keyPair = getKeyPair(stellar.sk);
+    const {stellar} = getState().user;
+    const keyPair = getKeyPair(stellar.sk);
 
-  dispatch({
-    type: LOADING,
-    payload: getState().content.data.statusTrustingStellarAsset,
-  });
-
-  try {
-    await trustAssetSDK(stellar.pk, keyPair);
     dispatch({
-      type: LOADING,
-      payload: getState().content.data.statusStellarTokenTrusted,
+        type: LOADING,
+        payload: getState().content.data.statusTrustingStellarAsset,
     });
 
-    dispatch(claim());
+    try {
+        await trustAssetSDK(stellar.pk, keyPair);
+        dispatch({
+            type: LOADING,
+            payload: getState().content.data.statusStellarTokenTrusted,
+        });
 
-  } catch (e) {
-    dispatch({
-      type: ERROR,
-      payload: getState().content.data.errorTrustingStellarAsset,
-    });
+        dispatch(claim());
 
-    setTimeout(dispatch, 6000, { type: LOADING, payload: null});
-  }
+    } catch (e) {
+        dispatch({
+            type: ERROR,
+            payload: getState().content.data.errorTrustingStellarAsset,
+        });
+
+        setTimeout(dispatch, 6000, {type: LOADING, payload: null});
+    }
 
 
 };

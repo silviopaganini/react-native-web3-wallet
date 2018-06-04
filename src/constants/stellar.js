@@ -1,4 +1,4 @@
-import StellarSdk from 'stellar-sdk';
+import StellarSdk from '@pigzbe/react-native-stellar-sdk';
 // import axios from 'axios';
 
 const ISSUING_PK = 'GDM4C7EZ3YMYQBGVOTFJ5N6F7KYH35G5TIFID535UC2LH44HTPLCJDAG';

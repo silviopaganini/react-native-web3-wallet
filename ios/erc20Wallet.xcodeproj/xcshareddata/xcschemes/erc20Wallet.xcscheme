@@ -71,9 +71,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "erc20Wallet.app"
+            BuildableName = "ERC20-Wallet.app"
             BlueprintName = "ERC20-Wallet"
-            ReferencedContainer = "container:ERC20-Wallet.xcodeproj">
+            ReferencedContainer = "container:erc20Wallet.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <AdditionalOptions>
@@ -94,9 +94,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "erc20Wallet.app"
+            BuildableName = "ERC20-Wallet.app"
             BlueprintName = "ERC20-Wallet"
-            ReferencedContainer = "container:ERC20-Wallet.xcodeproj">
+            ReferencedContainer = "container:erc20Wallet.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <AdditionalOptions>

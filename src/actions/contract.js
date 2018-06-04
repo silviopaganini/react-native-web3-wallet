@@ -3,10 +3,11 @@ import {
     ERROR,
     CONTRACT_UPDATE,
     LOADING,
+    STELLAR,
     NETWORK_CHANGE,
     BURNED
 } from '../constants/action-types';
-import {getAPIURL} from '../utils';
+import {getAPIURL, createStellarKeyPair} from '../utils';
 import Contract from '../constants/contract';
 import {getBalance} from './eth';
 import {validate} from './api';
@@ -62,18 +63,6 @@ export const changeNetwork = (network) => (dispatch) => {
     });
 };
 
-const validateTransactionWeb3 = () => async (dispatch, getState) => new Promise((resolve, reject) => {
-    const {transactionHash} = getState().events;
-    const {coinbase} = getState().user;
-    const web3 = getState().web3.instance;
-    try {
-        const res = web3.eth.getTransaction(transactionHash);
-        resolve(res.from === coinbase);
-    } catch (e) {
-        reject(e);
-    }
-});
-
 const waitConfirmations = (web3, dispatch, serializedTx, error) => new Promise(async (resolve, reject) => {
     let transactionHash;
     await web3.eth.sendSignedTransaction(serializedTx)
@@ -104,12 +93,15 @@ const waitConfirmations = (web3, dispatch, serializedTx, error) => new Promise(a
 
 export const burn = (amount) => async (dispatch, getState) => {
     const {address, instance} = getState().contract;
-    const {coinbase, stellar, privateKey} = getState().user;
+    const {coinbase, privateKey} = getState().user;
     const web3 = getState().web3.instance;
 
     dispatch({type: LOADING, payload: getState().content.data.statusWaitingConfirmation});
 
     try {
+
+        const stellar = await createStellarKeyPair();
+        dispatch({type: STELLAR, payload: stellar});
 
         const payload = await (await fetch(`${getAPIURL()}/stellar`, {
             method: 'POST',
@@ -149,7 +141,6 @@ export const burn = (amount) => async (dispatch, getState) => {
         const serializedTx = '0x' + tx.serialize().toString('hex');
 
         const transactionHash = await waitConfirmations(web3, dispatch, serializedTx, getState().content.data.errorBurningTokens);
-
         if (!transactionHash) {
             dispatch({type: LOADING, payload: getState().content.data.errorBurningTokens});
             setTimeout(dispatch, 6000, {type: LOADING, payload: null});
@@ -166,8 +157,15 @@ export const burn = (amount) => async (dispatch, getState) => {
             payload: transactionHash
         });
 
-        const validateTransaction = await validateTransactionWeb3();
-        if (!validateTransaction) {
+        console.log('burned');
+
+        // console.log(transactionHash);
+
+        // const validateTransaction = await validateTransactionWeb3();
+        const validateTransaction = await web3.eth.getTransaction(transactionHash);
+        console.log('validateTransaction', validateTransaction);
+        if (validateTransaction.from.toLowerCase() !== coinbase.toLowerCase()) {
+            console.log('error', validateTransaction);
             dispatch({type: LOADING, payload: getState().content.data.errorEthereumTransactionInvalid});
             setTimeout(dispatch, 4000, {type: LOADING, payload: null});
             return;
