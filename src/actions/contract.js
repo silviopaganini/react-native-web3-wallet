@@ -7,6 +7,7 @@ import {
     NETWORK_CHANGE,
     BURNED
 } from '../constants/action-types';
+import {save} from '../utils/storage';
 import {getAPIURL, createStellarKeyPair} from '../utils';
 import Contract from '../constants/contract';
 import {getBalance} from './eth';
@@ -20,7 +21,7 @@ export const getContract = () => async (dispatch, getState) => {
         const gasPrice = await web3.eth.getGasPrice();
         const deployedContract = new web3.eth.Contract(Contract[network].ABI, Contract[network].ADDRESS, {
             gasPrice,
-            gas: 47000000,
+            gas: 6721975,
         });
 
         const results = await Promise.all([
@@ -37,18 +38,17 @@ export const getContract = () => async (dispatch, getState) => {
                 instance: deployedContract,
                 address: Contract[network].ADDRESS,
                 abi: deployedContract.abi,
-                supply: web3.utils.toDecimal(results[0]),
+                supply: results[0],
                 name: results[1],
                 symbol: results[2]
             }
         });
 
         dispatch(getBalance());
-        // dispatch(getWallet());
-        // dispatch(getActivity());
 
         return null;
     } catch (e) {
+        console.log(e);
         return dispatch({
             type: ERROR,
             payload: e,
@@ -63,28 +63,37 @@ export const changeNetwork = (network) => (dispatch) => {
     });
 };
 
-const waitConfirmations = (web3, dispatch, serializedTx, error) => new Promise(async (resolve, reject) => {
-    let transactionHash;
+const saveBurning = {
+    stellar: null,
+    started: false,
+    ethAddress: null,
+    transactionHash: null,
+    value: 0,
+    burned: false,
+    burnValidated: false,
+};
+
+const sendSignedTransaction = (web3, serializedTx, error) => new Promise(async (resolve, reject) => {
     await web3.eth.sendSignedTransaction(serializedTx)
         .on('transactionHash', (hash) => {
-            transactionHash = hash;
-            dispatch({type: LOADING, payload: `Transaction Hash: ${hash}\n\nWaiting for network confirmations`});
+            hash;
+            resolve(hash);
         })
-        .on('receipt', (receipt) => {
-            dispatch({type: LOADING, payload: `Transaction Receipt: ${receipt.transactionHash}`});
-            return receipt;
-        })
-        .on('confirmation', function (confirmationNumber) {
-            if (confirmationNumber >= 7) {
-                this.off('confirmation');
-                resolve(transactionHash);
-                return;
-            }
-
-            const num = !isNaN(confirmationNumber) ? confirmationNumber : 0;
-            // console.log(102, confirmationNumber, receipt);
-            dispatch({type: LOADING, payload: `Network confirmations: ${num}`});
-        })
+        // .on('receipt', (receipt) => {
+        //     console.log(receipt);
+        //     return receipt.transactionHash;
+        // })
+        // .on('confirmation', function (confirmationNumber) {
+        //     if (confirmationNumber >= 7) {
+        //         this.off('confirmation');
+        //
+        //         return;
+        //     }
+        //
+        //     const num = !isNaN(confirmationNumber) ? confirmationNumber : 0;
+        //     // console.log(102, confirmationNumber, receipt);
+        //     dispatch({type: LOADING, payload: `Network confirmations: ${num}`});
+        // })
         .on('error', (e) => {
             console.log('error', e);
             reject(error);
@@ -123,13 +132,20 @@ export const burn = (amount) => async (dispatch, getState) => {
             return;
         }
 
+        saveBurning.stellar = stellar;
+        saveBurning.ethAddress = coinbase;
+        saveBurning.value = amount;
+        saveBurning.started = true;
+
+        save('burning', saveBurning);
+
         const bufferPrivateKey = new Buffer(privateKey, 'hex');
         const data = instance.methods.burn(amount).encodeABI();
 
         const rawTx = {
             nonce: web3.utils.toHex(await web3.eth.getTransactionCount(coinbase)),
             gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
-            gasLimit: web3.utils.toHex(10721975),
+            gasLimit: web3.utils.toHex(6721975),
             value: web3.utils.toHex(0),
             to: address,
             from: coinbase,
@@ -140,17 +156,27 @@ export const burn = (amount) => async (dispatch, getState) => {
         tx.sign(bufferPrivateKey);
         const serializedTx = '0x' + tx.serialize().toString('hex');
 
-        const transactionHash = await waitConfirmations(web3, dispatch, serializedTx, getState().content.data.errorBurningTokens);
+        const transactionHash = await sendSignedTransaction(web3, serializedTx, getState().content.data.errorBurningTokens);
+        saveBurning.transactionHash = transactionHash;
+        save('burning', saveBurning);
+        dispatch({type: LOADING, payload: `Transaction Hash: ${transactionHash}\n\nWaiting for network confirmations`});
+
         if (!transactionHash) {
             dispatch({type: LOADING, payload: getState().content.data.errorBurningTokens});
             setTimeout(dispatch, 6000, {type: LOADING, payload: null});
             return;
         }
 
+        const receipt = await web3.eth.getTransactionReceipt(transactionHash);
+        console.log(receipt);
+
         dispatch({
             type: LOADING,
             payload: getState().content.data.statusErc20Burned,
         });
+
+        saveBurning.burned = true;
+        save('burning', saveBurning);
 
         dispatch({
             type: BURNED,
@@ -170,6 +196,14 @@ export const burn = (amount) => async (dispatch, getState) => {
             setTimeout(dispatch, 4000, {type: LOADING, payload: null});
             return;
         }
+
+        saveBurning.burnValidated = true;
+        save('burning', saveBurning);
+
+        //TODO: continue from here
+        // the ideia is that we're saving all steps locally so if the user
+        // closes the app and tries again, we resume the process from where it stopped
+        //
 
         // dispatch(getActivity());
         dispatch(validate());

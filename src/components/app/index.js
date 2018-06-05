@@ -13,6 +13,7 @@ import {
     // getActivity
 } from '../../actions/eth';
 import {transfer, burn, changeNetwork} from '../../actions/contract';
+import {checkUserCache} from '../../actions/eth';
 import {loadContent} from '../../actions/content';
 import Loading from '../loading';
 import Network from '../network';
@@ -33,7 +34,6 @@ class App extends Component {
 
   componentDidMount() {
       this.props.loadContent();
-      this.props.changeNetwork('ropsten');
   }
 
   onImportKey = () => {
@@ -43,12 +43,6 @@ class App extends Component {
           return;
       }
       this.props.userLogin(mnemonic, pk);
-  }
-
-  componentWillReceiveProps(nextProps) {
-      if ((nextProps.web3 !== this.props.web3) && this.props.contract.instance) {
-          this.onImportKey();
-      }
   }
 
   onChangePublicKey = (text) => {
@@ -335,6 +329,7 @@ export default connect(({user, web3, events, contract, content}) => ({
     userLogin,
     loadContent,
     changeNetwork,
+    checkUserCache,
     transfer,
     burn,
 },

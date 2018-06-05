@@ -7,6 +7,7 @@ import {
     ERROR,
     LOADING
 } from '../constants/action-types';
+import {load, save} from '../utils/storage';
 import {getContract} from './contract';
 import {generateAddressFromSeed} from '../utils';
 
@@ -39,6 +40,23 @@ export const getBalance = () => async (dispatch, getState) => {
 //         dispatch({type: ERROR, payload: e});
 //     }
 // };
+//
+export const checkUserCache = () => async (dispatch) => {
+    try {
+        const {coinbase, privateKey} = await load('burning:user');
+        dispatch({
+            type: USER_LOGIN,
+            payload: {
+                coinbase,
+                privateKey
+            },
+        });
+
+        dispatch(getContract());
+    } catch (e) {
+        console.log(e);
+    }
+};
 
 export const userLogin = (mnemonic, pk) => async (dispatch, getState) => {
     clearTimeout(timeout);
@@ -52,6 +70,8 @@ export const userLogin = (mnemonic, pk) => async (dispatch, getState) => {
         const address = generateAddressFromSeed(mnemonic, pk);
         const account = web3.eth.accounts.privateKeyToAccount(`0x${address.privateKey}`);
         const coinbase = account.address;
+
+        save('burning:user', {coinbase, privateKey: address.privateKey, mnemonic});
 
         dispatch({
             type: USER_LOGIN,

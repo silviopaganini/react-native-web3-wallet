@@ -3,7 +3,7 @@ import bip39 from 'bip39';
 import hdkey from 'ethereumjs-wallet/hdkey';
 
 export const getAPIURL = () => {
-    const env = 'staging';
+    const env = 'local';
     switch (env) {
         case 'local':
             return 'http://localhost:5001';
