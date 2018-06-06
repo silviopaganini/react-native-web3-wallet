@@ -101,6 +101,8 @@ const watchConfirmations = (web3, transactionHash) => new Promise((resolve, reje
         timeout = 0;
         console.log('loopCheckConfirmation');
         console.log(loop);
+
+        // TODO: check the number of blocks this transaction is in
         try {
             const receipt = await web3.eth.getTransaction(transactionHash);
             console.log(receipt);
