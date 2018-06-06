@@ -6,7 +6,7 @@ export const getAPIURL = () => {
     const env = 'local';
     switch (env) {
         case 'local':
-            return 'http://localhost:5001';
+            return 'http://192.168.1.64:5001';
         case 'production':
             return 'https://api.pigzbe.com';
         default:

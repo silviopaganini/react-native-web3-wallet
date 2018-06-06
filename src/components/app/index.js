@@ -15,6 +15,10 @@ import {
 import {transfer, burn, changeNetwork} from '../../actions/contract';
 import {checkUserCache} from '../../actions/eth';
 import {loadContent} from '../../actions/content';
+import {
+    clear,
+    load
+} from '../../utils/storage';
 import Loading from '../loading';
 import Network from '../network';
 
@@ -22,6 +26,7 @@ class App extends Component {
 
   state = {
       burnInput: '5',
+      transactionHash: null,
       mnemonic: 'elephant merit raven monkey path outer paddle bounce exist fringe pet dry',
       pk: '0x798D23d6a84b2EF7d23c4A25735ED55B72072c24',
       errorImportingAccount: false,
@@ -32,7 +37,10 @@ class App extends Component {
       estimatedCost: null
   }
 
-  componentDidMount() {
+  async componentDidMount() {
+      // clear('burning');
+      this.loadedInfo = await load('burning');
+      console.log(this.loadedInfo);
       this.props.loadContent();
   }
 
@@ -51,6 +59,22 @@ class App extends Component {
 
   onChangeMnemonic = (mnemonic) => {
       this.setState({mnemonic});
+  }
+
+  async componentWillReceiveProps () {
+      this.loadedInfo = await load('burning');
+      if (this.loadedInfo.started && this.loadedInfo.value) {
+          this.setState({
+              burnInput: this.loadedInfo.value,
+              disableBurnInput: true
+          });
+      }
+
+      if (this.loadedInfo.transactionHash) {
+          this.setState({
+              transactionHash: this.loadedInfo.transactionHash
+          });
+      }
   }
 
   onSubmitBurn = async () => {
@@ -97,7 +121,14 @@ class App extends Component {
   }
 
   render() {
-      const {estimatedCost, mnemonic, pk, burnInput, errorImportingAccount} = this.state;
+      const {
+          estimatedCost,
+          mnemonic,
+          pk,
+          burnInput,
+          errorImportingAccount,
+          transactionHash
+      } = this.state;
       const {
           loading,
           contract,
@@ -107,13 +138,16 @@ class App extends Component {
           contentReady,
       } = this.props;
 
-      if (!contentReady) {
+
+      if (!contentReady || !this.loadedInfo) {
           return (
               <View style={styles.loading}>
                   <Text>Loading</Text>
               </View>
           );
       }
+
+      const stellar = (this.loadedInfo.stellar && this.loadedInfo.started) ? this.loadedInfo.stellar : (user.stellar ? user.stellar : null);
 
       return (
           <ScrollView style={styles.container}>
@@ -139,7 +173,21 @@ class App extends Component {
                       </View>
                   }
 
-                  {user.balance > 0 && user.coinbase.toLowerCase() !== contract.owner.toLowerCase() &&
+                  {this.loadedInfo.complete && this.loadedInfo.started &&
+                      <View style={styles.subSectionView}>
+                          <Text style={styles.subSectionHeading}>Your tokens were already burned</Text>
+                          <Text>Check your information below</Text>
+                      </View>
+                  }
+
+                  {!this.loadedInfo.complete && this.loadedInfo.started &&
+                      <View style={styles.subSectionView}>
+                          <Text>Your burning process has already started, click on the button below to resume the process</Text>
+                          <Button titleStyle={styles.buttonTitleStyle} buttonStyle={styles.buttonStyle} onPress={this.onSubmitBurn} title="Resume process"/>
+                      </View>
+                  }
+
+                  {!this.loadedInfo.complete && !this.loadedInfo.started && user.balance > 0 && user.coinbase.toLowerCase() !== contract.owner.toLowerCase() &&
                       <View style={styles.subSectionView}>
                           <Text style={styles.subSectionHeading}>Claim Stellar tokens</Text>
                           <Text>Total supply and user supply should decrease</Text>
@@ -149,45 +197,45 @@ class App extends Component {
                       </View>
                   }
 
-                  {user.stellar &&
+                  {stellar &&
                       <View style={styles.subSectionView}>
-                          <Text style={styles.subSectionHeading}>Transaction Hash</Text>
-                          <Text>{events.get('transactionHash')}</Text>
+                          <Text style={styles.subSectionHeading}>Ethereum Transaction Hash</Text>
+                          <Text>{transactionHash || events.get('transactionHash')}</Text>
                           <Text style={styles.subSectionHeading}>Stellar Account</Text>
-                          <Text>Secret Key: {user.stellar.sk}</Text>
-                          <Text>Public Key: {user.stellar.pk}</Text>
+                          <Text>Secret Key: {stellar.sk}</Text>
+                          <Text>Public Key: {stellar.pk}</Text>
                           <Button titleStyle={styles.buttonTitleStyle} buttonStyle={styles.buttonStyle} onPress={() => {
-                              Linking.openURL(`https://horizon-testnet.stellar.org/accounts/${user.stellar.pk}`);
+                              Linking.openURL(`https://horizon-testnet.stellar.org/accounts/${stellar.pk}`);
                           }} title="View on Stellar Network" />
                       </View>
                   }
 
                   {!user.coinbase && web3 &&
-                          <View style={styles.subSectionView}>
-                              <Text style={styles.subSectionHeading}>Let's import your account</Text>
-                              <FormLabel>Fill in your 12 memorable words (seed)</FormLabel>
-                              <FormInput
-                                  containerStyle={styles.inputTextArea}
-                                  inputStyle={styles.inputFieldTextArea}
-                                  multiline={true}
-                                  numberOfLines={3}
-                                  value={mnemonic}
-                                  onChangeText={this.onChangeMnemonic}
-                              />
+                      <View style={styles.subSectionView}>
+                          <Text style={styles.subSectionHeading}>Let's import your account</Text>
+                          <FormLabel>Fill in your 12 memorable words (seed)</FormLabel>
+                          <FormInput
+                              containerStyle={styles.inputTextArea}
+                              inputStyle={styles.inputFieldTextArea}
+                              multiline={true}
+                              numberOfLines={3}
+                              value={mnemonic}
+                              onChangeText={this.onChangeMnemonic}
+                          />
 
-                              <FormLabel>Fill in the Public address of your wallet</FormLabel>
-                              <FormInput
-                                  containerStyle={styles.inputTextArea}
-                                  inputStyle={styles.inputFieldTextArea}
-                                  value={pk}
-                                  multiline={true}
-                                  numberOfLines={3}
-                                  onChangeText={this.onChangePublicKey}
-                              />
+                          <FormLabel>Fill in the Public address of your wallet</FormLabel>
+                          <FormInput
+                              containerStyle={styles.inputTextArea}
+                              inputStyle={styles.inputFieldTextArea}
+                              value={pk}
+                              multiline={true}
+                              numberOfLines={3}
+                              onChangeText={this.onChangePublicKey}
+                          />
 
-                              {errorImportingAccount && <FormValidationMessage>All fields required</FormValidationMessage>}
-                              <Button titleStyle={styles.buttonTitleStyle} buttonStyle={[styles.buttonStyle, styles.importAccountButton]} onPress={this.onImportKey} title="Import" />
-                          </View>
+                          {errorImportingAccount && <FormValidationMessage>All fields required</FormValidationMessage>}
+                          <Button titleStyle={styles.buttonTitleStyle} buttonStyle={[styles.buttonStyle, styles.importAccountButton]} onPress={this.onImportKey} title="Import" />
+                      </View>
                   }
               </View>
 

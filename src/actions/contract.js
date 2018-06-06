@@ -7,7 +7,7 @@ import {
     NETWORK_CHANGE,
     BURNED
 } from '../constants/action-types';
-import {save} from '../utils/storage';
+import {save, load} from '../utils/storage';
 import {getAPIURL, createStellarKeyPair} from '../utils';
 import Contract from '../constants/contract';
 import {getBalance} from './eth';
@@ -63,16 +63,6 @@ export const changeNetwork = (network) => (dispatch) => {
     });
 };
 
-const saveBurning = {
-    stellar: null,
-    started: false,
-    ethAddress: null,
-    transactionHash: null,
-    value: 0,
-    burned: false,
-    burnValidated: false,
-};
-
 const sendSignedTransaction = (web3, serializedTx, error) => new Promise(async (resolve, reject) => {
     await web3.eth.sendSignedTransaction(serializedTx)
         .on('transactionHash', (hash) => {
@@ -105,100 +95,122 @@ export const burn = (amount) => async (dispatch, getState) => {
     const {coinbase, privateKey} = getState().user;
     const web3 = getState().web3.instance;
 
+    const loadedInfo = await load('burning');
+    console.log(loadedInfo);
+
     dispatch({type: LOADING, payload: getState().content.data.statusWaitingConfirmation});
 
     try {
 
-        const stellar = await createStellarKeyPair();
+        let stellar;
+        if (loadedInfo.stellar) {
+            stellar = loadedInfo.stellar;
+        } else {
+            stellar = await createStellarKeyPair();
+        }
+
         dispatch({type: STELLAR, payload: stellar});
 
-        const payload = await (await fetch(`${getAPIURL()}/stellar`, {
-            method: 'POST',
-            mode: 'cors',
-            cache: 'no-cache',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                pk: stellar.pk,
-                eth: coinbase,
-                value: amount,
-            })
-        })).json();
+        if (!loadedInfo.started) {
+            console.log(`${getAPIURL()}/stellar`);
+            const payload = await (await fetch(`${getAPIURL()}/stellar`, {
+                method: 'POST',
+                mode: 'cors',
+                cache: 'no-cache',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    pk: stellar.pk,
+                    eth: coinbase,
+                    value: amount,
+                })
+            })).json();
 
-        if (payload.error) {
-            console.log('payload error', payload.error);
-            dispatch({type: ERROR, payload});
-            dispatch({type: LOADING, payload: getState().content.data.errorCreatingStellarAccount});
-            setTimeout(dispatch, 4000, {type: LOADING, payload: null});
-            return;
+            console.log(payload);
+
+            if (payload.error) {
+                console.log('payload error', payload.error);
+                dispatch({type: ERROR, payload});
+                dispatch({type: LOADING, payload: getState().content.data.errorCreatingStellarAccount});
+                setTimeout(dispatch, 4000, {type: LOADING, payload: null});
+                return;
+            }
+
+            loadedInfo.stellar = stellar;
+            loadedInfo.ethAddress = coinbase;
+            loadedInfo.value = amount;
+            loadedInfo.started = true;
+            save('burning', loadedInfo);
         }
 
-        saveBurning.stellar = stellar;
-        saveBurning.ethAddress = coinbase;
-        saveBurning.value = amount;
-        saveBurning.started = true;
+        let transactionHash;
 
-        save('burning', saveBurning);
+        if (!loadedInfo.transactionHash) {
+            const bufferPrivateKey = new Buffer(privateKey, 'hex');
+            const data = instance.methods.burn(amount).encodeABI();
 
-        const bufferPrivateKey = new Buffer(privateKey, 'hex');
-        const data = instance.methods.burn(amount).encodeABI();
+            const rawTx = {
+                nonce: web3.utils.toHex(await web3.eth.getTransactionCount(coinbase)),
+                gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
+                gasLimit: web3.utils.toHex(6721975),
+                value: web3.utils.toHex(0),
+                to: address,
+                from: coinbase,
+                data
+            };
 
-        const rawTx = {
-            nonce: web3.utils.toHex(await web3.eth.getTransactionCount(coinbase)),
-            gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
-            gasLimit: web3.utils.toHex(6721975),
-            value: web3.utils.toHex(0),
-            to: address,
-            from: coinbase,
-            data
-        };
+            const tx = new Tx(rawTx);
+            tx.sign(bufferPrivateKey);
+            const serializedTx = '0x' + tx.serialize().toString('hex');
 
-        const tx = new Tx(rawTx);
-        tx.sign(bufferPrivateKey);
-        const serializedTx = '0x' + tx.serialize().toString('hex');
+            console.log('shouldnt be here');
 
-        const transactionHash = await sendSignedTransaction(web3, serializedTx, getState().content.data.errorBurningTokens);
-        saveBurning.transactionHash = transactionHash;
-        save('burning', saveBurning);
-        dispatch({type: LOADING, payload: `Transaction Hash: ${transactionHash}\n\nWaiting for network confirmations`});
+            transactionHash = await sendSignedTransaction(web3, serializedTx, getState().content.data.errorBurningTokens);
+            loadedInfo.transactionHash = transactionHash;
+            save('burning', loadedInfo);
+            dispatch({type: LOADING, payload: `Transaction Hash: ${transactionHash}\n\nWaiting for network confirmations`});
 
-        if (!transactionHash) {
-            dispatch({type: LOADING, payload: getState().content.data.errorBurningTokens});
-            setTimeout(dispatch, 6000, {type: LOADING, payload: null});
-            return;
+            if (!transactionHash) {
+                dispatch({type: LOADING, payload: getState().content.data.errorBurningTokens});
+                setTimeout(dispatch, 6000, {type: LOADING, payload: null});
+                return;
+            }
+        } else {
+            transactionHash = loadedInfo.transactionHash;
         }
 
-        const receipt = await web3.eth.getTransactionReceipt(transactionHash);
-        console.log(receipt);
+        if (!loadedInfo.burned) {
+            const receipt = await web3.eth.getTransactionReceipt(transactionHash);
+            console.log(receipt);
 
-        dispatch({
-            type: LOADING,
-            payload: getState().content.data.statusErc20Burned,
-        });
+            dispatch({
+                type: LOADING,
+                payload: getState().content.data.statusErc20Burned,
+            });
 
-        saveBurning.burned = true;
-        save('burning', saveBurning);
+            loadedInfo.burned = true;
+            save('burning', loadedInfo);
 
-        dispatch({
-            type: BURNED,
-            payload: transactionHash
-        });
+            dispatch({
+                type: BURNED,
+                payload: transactionHash
+            });
+        }
 
         console.log('burned');
 
-        // console.log(transactionHash);
+        if (!loadedInfo.burnValidated) {
+            const validateTransaction = await web3.eth.getTransaction(transactionHash);
+            console.log('validateTransaction', validateTransaction);
+            if (validateTransaction.from.toLowerCase() !== coinbase.toLowerCase()) {
+                console.log('error', validateTransaction);
+                dispatch({type: LOADING, payload: getState().content.data.errorEthereumTransactionInvalid});
+                setTimeout(dispatch, 4000, {type: LOADING, payload: null});
+                return;
+            }
 
-        // const validateTransaction = await validateTransactionWeb3();
-        const validateTransaction = await web3.eth.getTransaction(transactionHash);
-        console.log('validateTransaction', validateTransaction);
-        if (validateTransaction.from.toLowerCase() !== coinbase.toLowerCase()) {
-            console.log('error', validateTransaction);
-            dispatch({type: LOADING, payload: getState().content.data.errorEthereumTransactionInvalid});
-            setTimeout(dispatch, 4000, {type: LOADING, payload: null});
-            return;
+            loadedInfo.burnValidated = true;
+            save('burning', loadedInfo);
         }
-
-        saveBurning.burnValidated = true;
-        save('burning', saveBurning);
 
         //TODO: continue from here
         // the ideia is that we're saving all steps locally so if the user

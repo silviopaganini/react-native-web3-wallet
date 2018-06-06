@@ -7,33 +7,49 @@ import {
 } from '../constants/action-types';
 import {getBalance} from './eth';
 import {trustAsset} from './stellar';
+import {load, save} from '../utils/storage';
 
 export const validate = () => async (dispatch, getState) => {
     const {stellar} = getState().user;
-    const {transactionHash} = getState().events;
-    console.log('validate', transactionHash);
-    console.log('pk', stellar.pk);
+    let {transactionHash} = getState().events;
+
+    const loadedInfo = await load('burning');
+    if (loadedInfo.transactionHash) {
+        transactionHash = loadedInfo.transactionHash;
+    }
 
     dispatch({type: LOADING, payload: getState().content.data.statusValidatingEthereumTransaction});
 
     try {
-        const data = await fetch(`${getAPIURL()}/claim`, {
-            method: 'POST',
-            mode: 'cors',
-            cache: 'no-cache',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                tx: transactionHash,
-                pk: stellar.pk,
-            })
-        });
+        let payload;
 
-        const payload = await data.json();
-        console.log(payload);
-        if (payload.error) {
-            dispatch({type: LOADING, payload: getState().content.data.errorEthereumTransactionInvalid});
-            setTimeout(dispatch, 5000, {type: LOADING, payload: null});
-            return;
+        if (!(loadedInfo.stellarAccount && loadedInfo.receipt)) {
+            payload = await (await fetch(`${getAPIURL()}/claim`, {
+                method: 'POST',
+                mode: 'cors',
+                cache: 'no-cache',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    tx: transactionHash,
+                    pk: stellar.pk,
+                })
+            })).json();
+
+            if (payload.error) {
+                dispatch({type: LOADING, payload: getState().content.data.errorEthereumTransactionInvalid});
+                setTimeout(dispatch, 5000, {type: LOADING, payload: null});
+                return;
+            }
+
+            loadedInfo.stellarAccount = payload.stellar;
+            loadedInfo.receipt = payload.receipt;
+            save('burning', loadedInfo);
+
+        } else {
+            payload = {
+                stellar: loadedInfo.stellarAccount,
+                receipt: loadedInfo.receipt,
+            };
         }
 
         dispatch({type: CLAIM, payload});
@@ -45,37 +61,50 @@ export const validate = () => async (dispatch, getState) => {
 
 export const claim = () => async (dispatch, getState) => {
     const {stellar} = getState().user;
-    const {transactionHash} = getState().events;
+    let {transactionHash} = getState().events;
+
+    const loadedInfo = await load('burning');
+
+    if (loadedInfo.transactionHash) {
+        transactionHash = loadedInfo.transactionHash;
+    }
 
     dispatch({type: LOADING, payload: getState().content.data.statusValidatingEthereumTransaction});
 
     try {
-        const data = await fetch(`${getAPIURL()}/transfer`, {
-            method: 'POST',
-            mode: 'cors',
-            cache: 'no-cache',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                tx: transactionHash,
-                pk: stellar.pk,
-            })
-        });
+        let payload;
 
-        const payload = await data.json();
-        console.log(payload);
+        if (!loadedInfo.complete) {
+            payload = await (await fetch(`${getAPIURL()}/transfer`, {
+                method: 'POST',
+                mode: 'cors',
+                cache: 'no-cache',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    tx: transactionHash,
+                    pk: stellar.pk,
+                })
+            })).json();
 
-        if (payload.error) {
-            if (payload.error === 1) {
-                dispatch({type: LOADING, payload: getState().content.data.errorPaymentAlreadyProcessed});
-            } else {
-                dispatch({type: LOADING, payload: payload.message});
+            if (payload.error) {
+                if (payload.error === 1) {
+                    dispatch({type: LOADING, payload: getState().content.data.errorPaymentAlreadyProcessed});
+                } else {
+                    dispatch({type: LOADING, payload: payload.message});
+                }
+                setTimeout(dispatch, 2000, {
+                    type: LOADING,
+                    payload: null
+                });
+
+                return;
             }
-            setTimeout(dispatch, 2000, {
-                type: LOADING,
-                payload: null
-            });
 
-            return;
+            loadedInfo.transfer = payload;
+            save('burning', loadedInfo);
+
+        } else {
+            payload = loadedInfo.transfer;
         }
 
         dispatch({type: TRANSFER, payload});
@@ -86,6 +115,9 @@ export const claim = () => async (dispatch, getState) => {
             type: LOADING,
             payload: null,
         });
+
+        loadedInfo.complete = true;
+        save('burning', loadedInfo);
     } catch (e) {
         dispatch({type: ERROR, payload: e});
     }
