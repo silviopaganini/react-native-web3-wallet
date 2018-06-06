@@ -90,6 +90,36 @@ const sendSignedTransaction = (web3, serializedTx, error) => new Promise(async (
         });
 });
 
+const watchConfirmations = (web3, transactionHash) => new Promise((resolve, reject) => {
+
+    let loop = 0;
+    console.log('watchConfirmations');
+    let timeout = 0;
+
+    const loopCheckConfirmation = async () => {
+        clearTimeout(timeout);
+        timeout = 0;
+        console.log('loopCheckConfirmation');
+        console.log(loop);
+        try {
+            const receipt = await web3.eth.getTransaction(transactionHash);
+            console.log(receipt);
+            if (receipt.blockNumber) {
+                resolve(receipt);
+                return;
+            } else {
+                loop++;
+                timeout = setTimeout(loopCheckConfirmation, 2000);
+            }
+        } catch (e) {
+            console.log(e);
+            reject(e);
+        }
+    };
+
+    loopCheckConfirmation();
+});
+
 export const burn = (amount) => async (dispatch, getState) => {
     const {address, instance} = getState().contract;
     const {coinbase, privateKey} = getState().user;
@@ -151,7 +181,7 @@ export const burn = (amount) => async (dispatch, getState) => {
             const rawTx = {
                 nonce: web3.utils.toHex(await web3.eth.getTransactionCount(coinbase)),
                 gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
-                gasLimit: web3.utils.toHex(6721975),
+                gasLimit: web3.utils.toHex(4700000),
                 value: web3.utils.toHex(0),
                 to: address,
                 from: coinbase,
@@ -161,8 +191,6 @@ export const burn = (amount) => async (dispatch, getState) => {
             const tx = new Tx(rawTx);
             tx.sign(bufferPrivateKey);
             const serializedTx = '0x' + tx.serialize().toString('hex');
-
-            console.log('shouldnt be here');
 
             transactionHash = await sendSignedTransaction(web3, serializedTx, getState().content.data.errorBurningTokens);
             loadedInfo.transactionHash = transactionHash;
@@ -179,8 +207,16 @@ export const burn = (amount) => async (dispatch, getState) => {
         }
 
         if (!loadedInfo.burned) {
-            const receipt = await web3.eth.getTransactionReceipt(transactionHash);
-            console.log(receipt);
+
+            dispatch({type: LOADING, payload: `Transaction Hash: ${transactionHash}\n\nWaiting for network confirmations`});
+            const validateTransaction = await watchConfirmations(web3, transactionHash);
+            if (validateTransaction.from.toLowerCase() !== coinbase.toLowerCase()) {
+                console.log('error', validateTransaction);
+                dispatch({type: LOADING, payload: getState().content.data.errorEthereumTransactionInvalid});
+                setTimeout(dispatch, 4000, {type: LOADING, payload: null});
+                return;
+            }
+            console.log(validateTransaction);
 
             dispatch({
                 type: LOADING,
@@ -197,25 +233,6 @@ export const burn = (amount) => async (dispatch, getState) => {
         }
 
         console.log('burned');
-
-        if (!loadedInfo.burnValidated) {
-            const validateTransaction = await web3.eth.getTransaction(transactionHash);
-            console.log('validateTransaction', validateTransaction);
-            if (validateTransaction.from.toLowerCase() !== coinbase.toLowerCase()) {
-                console.log('error', validateTransaction);
-                dispatch({type: LOADING, payload: getState().content.data.errorEthereumTransactionInvalid});
-                setTimeout(dispatch, 4000, {type: LOADING, payload: null});
-                return;
-            }
-
-            loadedInfo.burnValidated = true;
-            save('burning', loadedInfo);
-        }
-
-        //TODO: continue from here
-        // the ideia is that we're saving all steps locally so if the user
-        // closes the app and tries again, we resume the process from where it stopped
-        //
 
         // dispatch(getActivity());
         dispatch(validate());

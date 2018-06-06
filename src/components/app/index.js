@@ -204,9 +204,9 @@ class App extends Component {
                           <Text style={styles.subSectionHeading}>Stellar Account</Text>
                           <Text>Secret Key: {stellar.sk}</Text>
                           <Text>Public Key: {stellar.pk}</Text>
-                          <Button titleStyle={styles.buttonTitleStyle} buttonStyle={styles.buttonStyle} onPress={() => {
+                          {this.loadedInfo.complete && <Button titleStyle={styles.buttonTitleStyle} buttonStyle={styles.buttonStyle} onPress={() => {
                               Linking.openURL(`https://horizon-testnet.stellar.org/accounts/${stellar.pk}`);
-                          }} title="View on Stellar Network" />
+                          }} title="View on Stellar Network" />}
                       </View>
                   }
 

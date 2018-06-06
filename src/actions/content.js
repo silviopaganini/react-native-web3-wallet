@@ -2,6 +2,7 @@ import {createClient} from 'contentful';
 import {CONTENT} from '../constants/action-types';
 import {changeNetwork} from './contract';
 import {checkUserCache} from './eth';
+import {ENV} from '../constants/config';
 
 const SPACE_ID = 'ez6679w6tm3p';
 const ACCESS_TOKEN = '5df8f5cc2ad75d6d30c43edc427d28ff7ef0a5138779a26cd6a87ccc9b6cae31';
@@ -24,6 +25,6 @@ export const loadContent = () => async (dispatch) => {
         payload: entries.items[0].fields
     });
 
-    dispatch(changeNetwork('local'));
+    dispatch(changeNetwork(ENV));
     dispatch(checkUserCache());
 };

@@ -10,4 +10,5 @@ export default {
     stellarAccount: null,
     complete: false,
     transfer: null,
+    receipt: null,
 }

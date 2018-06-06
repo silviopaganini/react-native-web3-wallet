@@ -1,12 +1,14 @@
 import Stellar from '@pigzbe/react-native-stellar-sdk';
 import bip39 from 'bip39';
 import hdkey from 'ethereumjs-wallet/hdkey';
+import {ENV} from '../constants/config';
 
 export const getAPIURL = () => {
-    const env = 'local';
-    switch (env) {
+    switch (ENV) {
+        case 'private':
         case 'local':
             return 'http://192.168.1.64:5001';
+        case 'mainnet':
         case 'production':
             return 'https://api.pigzbe.com';
         default:
