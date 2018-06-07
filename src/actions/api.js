@@ -18,7 +18,9 @@ export const validate = () => async (dispatch, getState) => {
         transactionHash = loadedInfo.transactionHash;
     }
 
-    dispatch({type: LOADING, payload: getState().content.data.statusValidatingEthereumTransaction});
+    console.log('validate');
+
+    dispatch({type: LOADING, payload: 'Finishing Ethereum validation'});
 
     try {
         let payload;
@@ -41,6 +43,8 @@ export const validate = () => async (dispatch, getState) => {
                 return;
             }
 
+            console.log(payload.stellar);
+
             loadedInfo.stellarAccount = payload.stellar;
             loadedInfo.receipt = payload.receipt;
             save('burning', loadedInfo);
@@ -52,9 +56,12 @@ export const validate = () => async (dispatch, getState) => {
             };
         }
 
+        console.log(payload);
+
         dispatch({type: CLAIM, payload});
         dispatch(trustAsset());
     } catch (e) {
+        console.log(e);
         dispatch({type: ERROR, payload: e});
     }
 };
@@ -119,6 +126,7 @@ export const claim = () => async (dispatch, getState) => {
         loadedInfo.complete = true;
         save('burning', loadedInfo);
     } catch (e) {
+        console.log(e);
         dispatch({type: ERROR, payload: e});
     }
 };

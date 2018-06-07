@@ -139,7 +139,7 @@ class App extends Component {
       } = this.props;
 
 
-      if (!contentReady || !this.loadedInfo) {
+      if (!contentReady || !this.loadedInfo || !contract.instance) {
           return (
               <View style={styles.loading}>
                   <Text>Loading</Text>

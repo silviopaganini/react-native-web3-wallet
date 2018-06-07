@@ -1,7 +1,7 @@
 import {getKeyPair} from '../utils';
 import {trustAsset as trustAssetSDK} from '../constants/stellar';
 import {claim} from './api';
-import {STELLAR, LOADING, ERROR} from '../constants/action-types';
+import {LOADING} from '../constants/action-types';
 
 export const trustAsset = () => async (dispatch, getState) => {
     const {stellar} = getState().user;
@@ -22,8 +22,9 @@ export const trustAsset = () => async (dispatch, getState) => {
         dispatch(claim());
 
     } catch (e) {
+        console.log(e);
         dispatch({
-            type: ERROR,
+            type: LOADING,
             payload: getState().content.data.errorTrustingStellarAsset,
         });
 

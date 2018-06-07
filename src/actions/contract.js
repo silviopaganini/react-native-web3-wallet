@@ -12,6 +12,7 @@ import {getAPIURL, createStellarKeyPair} from '../utils';
 import Contract from '../constants/contract';
 import {getBalance} from './eth';
 import {validate} from './api';
+import {NUM_VALIDATIONS} from '../constants/config';
 
 export const getContract = () => async (dispatch, getState) => {
 
@@ -66,35 +67,37 @@ export const changeNetwork = (network) => (dispatch) => {
 const sendSignedTransaction = (web3, serializedTx, error) => new Promise(async (resolve, reject) => {
     await web3.eth.sendSignedTransaction(serializedTx)
         .on('transactionHash', (hash) => {
-            hash;
             resolve(hash);
         })
-        // .on('receipt', (receipt) => {
-        //     console.log(receipt);
-        //     return receipt.transactionHash;
-        // })
-        // .on('confirmation', function (confirmationNumber) {
-        //     if (confirmationNumber >= 7) {
-        //         this.off('confirmation');
-        //
-        //         return;
-        //     }
-        //
-        //     const num = !isNaN(confirmationNumber) ? confirmationNumber : 0;
-        //     // console.log(102, confirmationNumber, receipt);
-        //     dispatch({type: LOADING, payload: `Network confirmations: ${num}`});
-        // })
         .on('error', (e) => {
             console.log('error', e);
             reject(error);
         });
 });
 
-const watchConfirmations = (web3, transactionHash) => new Promise((resolve, reject) => {
+const watchConfirmations = (web3, transactionHash, dispatch) => new Promise((resolve, reject) => {
 
     let loop = 0;
     console.log('watchConfirmations');
     let timeout = 0;
+
+    const checkConfirmations = async (receipt) => {
+        clearTimeout(timeout);
+        timeout = 0;
+        const blockNumber = await web3.eth.getBlockNumber();
+
+        dispatch({type: LOADING, payload: `Ethereum Block confirmations: ${Math.abs(blockNumber - receipt.blockNumber)}`});
+
+        console.log(blockNumber, receipt.blockNumber, blockNumber - receipt.blockNumber);
+
+        if (blockNumber - receipt.blockNumber >= NUM_VALIDATIONS) {
+            resolve(receipt);
+            return;
+        }
+
+        loop++;
+        timeout = setTimeout(checkConfirmations, 2000, receipt);
+    };
 
     const loopCheckConfirmation = async () => {
         clearTimeout(timeout);
@@ -107,8 +110,11 @@ const watchConfirmations = (web3, transactionHash) => new Promise((resolve, reje
             const receipt = await web3.eth.getTransaction(transactionHash);
             console.log(receipt);
             if (receipt.blockNumber) {
-                resolve(receipt);
-                return;
+                loop = 0;
+                clearTimeout(timeout);
+                checkConfirmations(receipt);
+                // const blockNumber = await web3.eth.getBlockNumber();
+                // console.log(blockNumber, receipt.blockNumber, blockNumber - receipt.blockNumber);
             } else {
                 loop++;
                 timeout = setTimeout(loopCheckConfirmation, 2000);
@@ -197,7 +203,7 @@ export const burn = (amount) => async (dispatch, getState) => {
             transactionHash = await sendSignedTransaction(web3, serializedTx, getState().content.data.errorBurningTokens);
             loadedInfo.transactionHash = transactionHash;
             save('burning', loadedInfo);
-            dispatch({type: LOADING, payload: `Transaction Hash: ${transactionHash}\n\nWaiting for network confirmations`});
+            dispatch({type: LOADING, payload: 'Transaction accepted!\n\nWaiting for network confirmations'});
 
             if (!transactionHash) {
                 dispatch({type: LOADING, payload: getState().content.data.errorBurningTokens});
@@ -210,8 +216,9 @@ export const burn = (amount) => async (dispatch, getState) => {
 
         if (!loadedInfo.burned) {
 
-            dispatch({type: LOADING, payload: `Transaction Hash: ${transactionHash}\n\nWaiting for network confirmations`});
-            const validateTransaction = await watchConfirmations(web3, transactionHash);
+            dispatch({type: LOADING, payload: 'Transaction accepted!\n\nWaiting for network confirmations'});
+            console.log(transactionHash);
+            const validateTransaction = await watchConfirmations(web3, transactionHash, dispatch);
             if (validateTransaction.from.toLowerCase() !== coinbase.toLowerCase()) {
                 console.log('error', validateTransaction);
                 dispatch({type: LOADING, payload: getState().content.data.errorEthereumTransactionInvalid});
