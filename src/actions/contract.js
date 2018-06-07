@@ -5,25 +5,31 @@ import {
     LOADING,
     STELLAR,
     NETWORK_CHANGE,
+    LOCAL_STORAGE,
     BURNED
 } from '../constants/action-types';
-import {save, load} from '../utils/storage';
 import {getAPIURL, createStellarKeyPair} from '../utils';
+import {watchConfirmations} from '../utils/web3';
 import Contract from '../constants/contract';
 import {getBalance} from './eth';
 import {validate} from './api';
 import {NUM_VALIDATIONS} from '../constants/config';
 
-export const getContract = () => async (dispatch, getState) => {
+const getContract = () => async (dispatch, getState) => {
+
+    console.log('getContract');
 
     try {
         const {network} = getState().contract;
         const web3 = getState().web3.instance;
-        const gasPrice = await web3.eth.getGasPrice();
+        const {coinbase} = getState().user;
+
         const deployedContract = new web3.eth.Contract(Contract[network].ABI, Contract[network].ADDRESS, {
-            gasPrice,
+            gasPrice: await web3.eth.getGasPrice(),
             gas: 6721975,
         });
+
+        console.log(deployedContract);
 
         const results = await Promise.all([
             deployedContract.methods.totalSupply().call(),
@@ -31,6 +37,8 @@ export const getContract = () => async (dispatch, getState) => {
             deployedContract.methods.symbol().call(),
             deployedContract.methods.owner().call()
         ]);
+
+        console.log(results);
 
         dispatch({
             type: CONTRACT_UPDATE,
@@ -45,7 +53,9 @@ export const getContract = () => async (dispatch, getState) => {
             }
         });
 
-        dispatch(getBalance());
+        if (coinbase) {
+            dispatch(getBalance());
+        }
 
         return null;
     } catch (e) {
@@ -58,10 +68,13 @@ export const getContract = () => async (dispatch, getState) => {
 };
 
 export const changeNetwork = (network) => (dispatch) => {
+    console.log('changeNetwork');
     dispatch({
         type: NETWORK_CHANGE,
         payload: network
     });
+
+    dispatch(getContract());
 };
 
 const sendSignedTransaction = (web3, serializedTx, error) => new Promise(async (resolve, reject) => {
@@ -75,81 +88,22 @@ const sendSignedTransaction = (web3, serializedTx, error) => new Promise(async (
         });
 });
 
-const watchConfirmations = (web3, transactionHash, dispatch) => new Promise((resolve, reject) => {
 
-    let loop = 0;
-    console.log('watchConfirmations');
-    let timeout = 0;
-
-    const checkConfirmations = async (receipt) => {
-        clearTimeout(timeout);
-        timeout = 0;
-        const blockNumber = await web3.eth.getBlockNumber();
-
-        dispatch({type: LOADING, payload: `Ethereum Block confirmations: ${Math.abs(blockNumber - receipt.blockNumber)}`});
-
-        console.log(blockNumber, receipt.blockNumber, blockNumber - receipt.blockNumber);
-
-        if (blockNumber - receipt.blockNumber >= NUM_VALIDATIONS) {
-            resolve(receipt);
-            return;
-        }
-
-        loop++;
-        timeout = setTimeout(checkConfirmations, 2000, receipt);
-    };
-
-    const loopCheckConfirmation = async () => {
-        clearTimeout(timeout);
-        timeout = 0;
-        console.log('loopCheckConfirmation');
-        console.log(loop);
-
-        // TODO: check the number of blocks this transaction is in
-        try {
-            const receipt = await web3.eth.getTransaction(transactionHash);
-            console.log(receipt);
-            if (receipt.blockNumber) {
-                loop = 0;
-                clearTimeout(timeout);
-                checkConfirmations(receipt);
-                // const blockNumber = await web3.eth.getBlockNumber();
-                // console.log(blockNumber, receipt.blockNumber, blockNumber - receipt.blockNumber);
-            } else {
-                loop++;
-                timeout = setTimeout(loopCheckConfirmation, 2000);
-            }
-        } catch (e) {
-            console.log(e);
-            reject(e);
-        }
-    };
-
-    loopCheckConfirmation();
-});
 
 export const burn = (amount) => async (dispatch, getState) => {
     const {address, instance} = getState().contract;
     const {coinbase, privateKey} = getState().user;
+    const {localStorage} = getState().content;
     const web3 = getState().web3.instance;
-
-    const loadedInfo = await load('burning');
-    console.log(loadedInfo);
 
     dispatch({type: LOADING, payload: getState().content.data.statusWaitingConfirmation});
 
     try {
-
-        let stellar;
-        if (loadedInfo.stellar) {
-            stellar = loadedInfo.stellar;
-        } else {
-            stellar = await createStellarKeyPair();
-        }
+        const stellar = localStorage.stellar || await createStellarKeyPair();
 
         dispatch({type: STELLAR, payload: stellar});
 
-        if (!loadedInfo.started) {
+        if (!localStorage.started) {
             console.log(`${getAPIURL()}/stellar`);
             const payload = await (await fetch(`${getAPIURL()}/stellar`, {
                 method: 'POST',
@@ -173,16 +127,20 @@ export const burn = (amount) => async (dispatch, getState) => {
                 return;
             }
 
-            loadedInfo.stellar = stellar;
-            loadedInfo.ethAddress = coinbase;
-            loadedInfo.value = amount;
-            loadedInfo.started = true;
-            save('burning', loadedInfo);
+            dispatch({
+                type: LOCAL_STORAGE,
+                payload: {
+                    stellar: stellar,
+                    ethAddress: coinbase,
+                    value: amount,
+                    started: true,
+                }
+            });
         }
 
         let transactionHash;
 
-        if (!loadedInfo.transactionHash) {
+        if (!localStorage.transactionHash) {
             const bufferPrivateKey = new Buffer(privateKey, 'hex');
             const data = instance.methods.burn(amount).encodeABI();
 
@@ -201,9 +159,15 @@ export const burn = (amount) => async (dispatch, getState) => {
             const serializedTx = '0x' + tx.serialize().toString('hex');
 
             transactionHash = await sendSignedTransaction(web3, serializedTx, getState().content.data.errorBurningTokens);
-            loadedInfo.transactionHash = transactionHash;
-            save('burning', loadedInfo);
-            dispatch({type: LOADING, payload: 'Transaction accepted!\n\nWaiting for network confirmations'});
+
+            dispatch({
+                type: LOCAL_STORAGE,
+                payload: {
+                    transactionHash: transactionHash
+                }
+            });
+
+            dispatch({type: LOADING, payload: 'Transaction accepted!\n\nWaiting for network confirmations\n\nThis step can take a while, it\'s safe to come back later'});
 
             if (!transactionHash) {
                 dispatch({type: LOADING, payload: getState().content.data.errorBurningTokens});
@@ -211,20 +175,29 @@ export const burn = (amount) => async (dispatch, getState) => {
                 return;
             }
         } else {
-            transactionHash = loadedInfo.transactionHash;
+            transactionHash = localStorage.transactionHash;
         }
 
-        if (!loadedInfo.burned) {
-
-            dispatch({type: LOADING, payload: 'Transaction accepted!\n\nWaiting for network confirmations'});
+        if (!localStorage.burned) {
+            dispatch({type: LOADING, payload: 'Transaction accepted!\n\nWaiting for network confirmations\n\nThis step can take a while, it\'s safe to come back later'});
             console.log(transactionHash);
-            const validateTransaction = await watchConfirmations(web3, transactionHash, dispatch);
+
+            const onValidatedBlock = (blocks) => dispatch({type: LOADING, payload: `Blocks confirmed: ${blocks}\n\nThis step can take a while, it\'s safe to come back later`});
+
+            const validateTransaction = await watchConfirmations({
+                web3,
+                transactionHash,
+                validations: NUM_VALIDATIONS,
+                onValidatedBlock
+            });
+
             if (validateTransaction.from.toLowerCase() !== coinbase.toLowerCase()) {
                 console.log('error', validateTransaction);
                 dispatch({type: LOADING, payload: getState().content.data.errorEthereumTransactionInvalid});
                 setTimeout(dispatch, 4000, {type: LOADING, payload: null});
                 return;
             }
+
             console.log(validateTransaction);
 
             dispatch({
@@ -232,8 +205,12 @@ export const burn = (amount) => async (dispatch, getState) => {
                 payload: getState().content.data.statusErc20Burned,
             });
 
-            loadedInfo.burned = true;
-            save('burning', loadedInfo);
+            dispatch({
+                type: LOCAL_STORAGE,
+                payload: {
+                    burned: true
+                }
+            });
 
             dispatch({
                 type: BURNED,

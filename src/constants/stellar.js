@@ -1,8 +1,8 @@
 import StellarSdk from '@pigzbe/react-native-stellar-sdk';
 // import axios from 'axios';
 
-const ISSUING_PK = 'GDM4C7EZ3YMYQBGVOTFJ5N6F7KYH35G5TIFID535UC2LH44HTPLCJDAG';
-const ASSET_CODE = 'WOL';
+const ISSUING_PK = 'GA3ZCJL6LVSEGHLTQBYT27XEIVZ6E4NOPV7LRLXS5QPUCS7RPJD6RK5T';
+const ASSET_CODE = 'WLO';
 
 let _server = null;
 

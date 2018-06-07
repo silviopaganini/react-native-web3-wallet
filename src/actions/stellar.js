@@ -1,23 +1,39 @@
 import {getKeyPair} from '../utils';
 import {trustAsset as trustAssetSDK} from '../constants/stellar';
 import {claim} from './api';
-import {LOADING} from '../constants/action-types';
+import {LOADING, LOCAL_STORAGE} from '../constants/action-types';
 
 export const trustAsset = () => async (dispatch, getState) => {
     const {stellar} = getState().user;
     const keyPair = getKeyPair(stellar.sk);
+    const {localStorage} = getState().content;
+    const {
+        statusTrustingStellarAsset,
+        statusStellarTokenTrusted,
+        errorTrustingStellarAsset
+    } = getState().content.data;
 
     dispatch({
         type: LOADING,
-        payload: getState().content.data.statusTrustingStellarAsset,
+        payload: statusTrustingStellarAsset,
     });
 
+
     try {
-        await trustAssetSDK(stellar.pk, keyPair);
-        dispatch({
-            type: LOADING,
-            payload: getState().content.data.statusStellarTokenTrusted,
-        });
+        if (!localStorage.wolloTrusted) {
+            await trustAssetSDK(stellar.pk, keyPair);
+            dispatch({
+                type: LOADING,
+                payload: statusStellarTokenTrusted,
+            });
+
+            dispatch({
+                type: LOCAL_STORAGE,
+                payload: {
+                    wolloTrusted: true,
+                }
+            });
+        }
 
         dispatch(claim());
 
@@ -25,7 +41,7 @@ export const trustAsset = () => async (dispatch, getState) => {
         console.log(e);
         dispatch({
             type: LOADING,
-            payload: getState().content.data.errorTrustingStellarAsset,
+            payload: errorTrustingStellarAsset,
         });
 
         setTimeout(dispatch, 6000, {type: LOADING, payload: null});

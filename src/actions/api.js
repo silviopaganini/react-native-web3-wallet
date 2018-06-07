@@ -3,20 +3,16 @@ import {
     ERROR,
     CLAIM,
     TRANSFER,
-    LOADING
+    LOADING,
+    LOCAL_STORAGE
 } from '../constants/action-types';
 import {getBalance} from './eth';
 import {trustAsset} from './stellar';
-import {load, save} from '../utils/storage';
 
 export const validate = () => async (dispatch, getState) => {
     const {stellar} = getState().user;
-    let {transactionHash} = getState().events;
-
-    const loadedInfo = await load('burning');
-    if (loadedInfo.transactionHash) {
-        transactionHash = loadedInfo.transactionHash;
-    }
+    const {localStorage} = getState().content;
+    const transactionHash = localStorage.transactionHash || getState().events.transactionHash;
 
     console.log('validate');
 
@@ -25,7 +21,7 @@ export const validate = () => async (dispatch, getState) => {
     try {
         let payload;
 
-        if (!(loadedInfo.stellarAccount && loadedInfo.receipt)) {
+        if (!(localStorage.stellarAccount && localStorage.receipt)) {
             payload = await (await fetch(`${getAPIURL()}/claim`, {
                 method: 'POST',
                 mode: 'cors',
@@ -45,18 +41,20 @@ export const validate = () => async (dispatch, getState) => {
 
             console.log(payload.stellar);
 
-            loadedInfo.stellarAccount = payload.stellar;
-            loadedInfo.receipt = payload.receipt;
-            save('burning', loadedInfo);
+            dispatch({
+                type: LOCAL_STORAGE,
+                payload: {
+                    stellarAccount: payload.stellar,
+                    receipt: payload.receipt,
+                }
+            });
 
         } else {
             payload = {
-                stellar: loadedInfo.stellarAccount,
-                receipt: loadedInfo.receipt,
+                stellar: localStorage.stellarAccount,
+                receipt: localStorage.receipt,
             };
         }
-
-        console.log(payload);
 
         dispatch({type: CLAIM, payload});
         dispatch(trustAsset());
@@ -68,20 +66,15 @@ export const validate = () => async (dispatch, getState) => {
 
 export const claim = () => async (dispatch, getState) => {
     const {stellar} = getState().user;
-    let {transactionHash} = getState().events;
-
-    const loadedInfo = await load('burning');
-
-    if (loadedInfo.transactionHash) {
-        transactionHash = loadedInfo.transactionHash;
-    }
+    const {localStorage} = getState().content;
+    const transactionHash = localStorage.transactionHash || getState().events.transactionHash;
 
     dispatch({type: LOADING, payload: getState().content.data.statusValidatingEthereumTransaction});
 
     try {
         let payload;
 
-        if (!loadedInfo.complete) {
+        if (!localStorage.complete) {
             payload = await (await fetch(`${getAPIURL()}/transfer`, {
                 method: 'POST',
                 mode: 'cors',
@@ -107,11 +100,15 @@ export const claim = () => async (dispatch, getState) => {
                 return;
             }
 
-            loadedInfo.transfer = payload;
-            save('burning', loadedInfo);
+            dispatch({
+                type: LOCAL_STORAGE,
+                payload: {
+                    transfer: payload,
+                }
+            });
 
         } else {
-            payload = loadedInfo.transfer;
+            payload = localStorage.transfer;
         }
 
         dispatch({type: TRANSFER, payload});
@@ -123,8 +120,12 @@ export const claim = () => async (dispatch, getState) => {
             payload: null,
         });
 
-        loadedInfo.complete = true;
-        save('burning', loadedInfo);
+        dispatch({
+            type: LOCAL_STORAGE,
+            payload: {
+                complete: true,
+            }
+        });
     } catch (e) {
         console.log(e);
         dispatch({type: ERROR, payload: e});
