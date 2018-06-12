@@ -7,7 +7,7 @@ export const getAPIURL = () => {
     switch (ENV) {
         case 'private':
         case 'local':
-            return 'http://192.168.1.64:5001';
+            return 'http://172.20.10.3:5001';
         case 'mainnet':
         case 'production':
             return 'https://api.pigzbe.com';

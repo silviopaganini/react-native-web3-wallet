@@ -34,6 +34,7 @@ export const validate = () => async (dispatch, getState) => {
             })).json();
 
             if (payload.error) {
+                console.log(payload);
                 dispatch({type: LOADING, payload: getState().content.data.errorEthereumTransactionInvalid});
                 setTimeout(dispatch, 5000, {type: LOADING, payload: null});
                 return;
