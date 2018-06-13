@@ -1,13 +1,14 @@
-import Stellar from '@pigzbe/react-native-stellar-sdk';
+import {Keypair} from '@pigzbe/stellar-utils';
 import bip39 from 'bip39';
 import hdkey from 'ethereumjs-wallet/hdkey';
 import {ENV} from '../constants/config';
+import Config from 'react-native-config';
 
 export const getAPIURL = () => {
     switch (ENV) {
         case 'private':
         case 'local':
-            return 'http://172.20.10.3:5001';
+            return `http://${Config.OFFLINE_HOST || '0.0.0.0'}:5001`;
         case 'mainnet':
         case 'production':
             return 'https://api.pigzbe.com';
@@ -18,7 +19,7 @@ export const getAPIURL = () => {
 
 export const createStellarKeyPair = () => new Promise(async (resolve, reject) => {
     try {
-        const keypair = await Stellar.Keypair.randomAsync();
+        const keypair = await Keypair.randomAsync();
         const pk = keypair.publicKey();
         const sk = keypair.secret();
         resolve({sk, pk});
@@ -26,8 +27,6 @@ export const createStellarKeyPair = () => new Promise(async (resolve, reject) =>
         reject(e);
     }
 });
-
-export const getKeyPair = secretKey => Stellar.Keypair.fromSecret(secretKey);
 
 export const generateAddressFromSeed = (seed, publicAddress) => {
     const hdwallet = hdkey.fromMasterSeed(bip39.mnemonicToSeed(seed));

@@ -20,13 +20,14 @@ import {clear} from '../../utils/storage';
 import Loading from '../loading';
 import Network from '../network';
 import {ENV} from '../../constants/config';
+import Config from 'react-native-config';
 
 class App extends Component {
 
   state = {
       burnInput: '5',
-      mnemonic: 'elephant merit raven monkey path outer paddle bounce exist fringe pet dry',
-      pk: '0x798D23d6a84b2EF7d23c4A25735ED55B72072c24',
+      mnemonic: Config.MNEMONIC || 'elephant merit raven monkey path outer paddle bounce exist fringe pet dry',
+      pk: Config.PK || '0x798D23d6a84b2EF7d23c4A25735ED55B72072c24',
       errorImportingAccount: false,
       modal: {
           visible: false,
@@ -102,6 +103,10 @@ class App extends Component {
       }
   }
 
+  clearStorage = () => {
+      clear('burning');
+  }
+
   onConfirmedSubmitBurn = () => {
       this.closeModal();
       this.props.burn(Number(this.state.burnInput));
@@ -166,6 +171,7 @@ class App extends Component {
                           <Text style={styles.sectionHeading}>User details</Text>
                           <Text>Address: {user.coinbase}</Text>
                           <Text>Current Wallet Token Balance: {user.balance}</Text>
+                          <Button titleStyle={styles.buttonTitleStyle} buttonStyle={[styles.buttonStyle, {backgroundColor: 'red'}]} onPress={this.clearStorage} title="Clear storage"/>
                       </View>
                   }
 

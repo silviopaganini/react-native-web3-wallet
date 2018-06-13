@@ -5,10 +5,11 @@
   "scripts": {
     "start": "node node_modules/react-native/local-cli/cli.js start",
     "ios": "react-native run-ios",
-    "test": "jest"
+    "test": "jest",
+    "deploy": "pigzbe-contract deploy"
   },
   "dependencies": {
-    "@pigzbe/react-native-stellar-sdk": "1.0.3",
+    "@pigzbe/stellar-utils": "1.0.6",
     "bip39": "2.5.0",
     "contentful": "6.1.1",
     "ethereumjs-tx": "1.3.4",
@@ -18,6 +19,7 @@
     "pigzbe-erc20-contract": "git+ssh://git@github.com/pigzbe/erc20-contract",
     "react": "16.4.0",
     "react-native": "0.55.4",
+    "react-native-config": "^0.11.5",
     "react-native-elements": "0.19.1",
     "react-native-material-dropdown": "0.11.1",
     "react-native-vector-icons": "4.6.0",

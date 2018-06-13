@@ -1,11 +1,14 @@
-import {getKeyPair} from '../utils';
-import {trustAsset as trustAssetSDK} from '../constants/stellar';
+import {Asset, useTestnet, trustAsset} from '@pigzbe/stellar-utils';
 import {claim} from './api';
 import {LOADING, LOCAL_STORAGE} from '../constants/action-types';
+import Config from 'react-native-config';
 
-export const trustAsset = () => async (dispatch, getState) => {
+if (Config.STELLAR_USE_TESTNET) {
+    useTestnet();
+}
+
+export const trustStellarAsset = () => async (dispatch, getState) => {
     const {stellar} = getState().user;
-    const keyPair = getKeyPair(stellar.sk);
     const {localStorage} = getState().content;
     const {
         statusTrustingStellarAsset,
@@ -21,7 +24,8 @@ export const trustAsset = () => async (dispatch, getState) => {
 
     try {
         if (!localStorage.wolloTrusted) {
-            await trustAssetSDK(stellar.pk, keyPair);
+            const asset = new Asset(Config.STELLAR_TOKEN_CODE, Config.STELLAR_TOKEN_ISSUER);
+            await trustAsset(stellar.sk, asset);
             dispatch({
                 type: LOADING,
                 payload: statusStellarTokenTrusted,
