@@ -3,79 +3,115 @@ import {
     ERROR,
     CLAIM,
     TRANSFER,
-    LOADING
+    LOADING,
+    LOCAL_STORAGE
 } from '../constants/action-types';
 import {getBalance} from './eth';
-import {trustAsset} from './stellar';
+import {trustStellarAsset} from './stellar';
 
 export const validate = () => async (dispatch, getState) => {
     const {stellar} = getState().user;
-    const {transactionHash} = getState().events;
-    console.log('validate', transactionHash);
-    console.log('pk', stellar.pk);
+    const {localStorage} = getState().content;
+    const transactionHash = localStorage.transactionHash || getState().events.transactionHash;
 
-    dispatch({type: LOADING, payload: getState().content.data.statusValidatingEthereumTransaction});
+    console.log('validate');
+
+    dispatch({type: LOADING, payload: 'Finishing Ethereum validation'});
 
     try {
-        const data = await fetch(`${getAPIURL()}/claim`, {
-            method: 'POST',
-            mode: 'cors',
-            cache: 'no-cache',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                tx: transactionHash,
-                pk: stellar.pk,
-            })
-        });
+        let payload;
 
-        const payload = await data.json();
-        console.log(payload);
-        if (payload.error) {
-            dispatch({type: LOADING, payload: getState().content.data.errorEthereumTransactionInvalid});
-            setTimeout(dispatch, 5000, {type: LOADING, payload: null});
-            return;
+        if (!(localStorage.stellarAccount && localStorage.receipt)) {
+            payload = await (await fetch(`${getAPIURL()}/claim`, {
+                method: 'POST',
+                mode: 'cors',
+                cache: 'no-cache',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    tx: transactionHash,
+                    pk: stellar.pk,
+                })
+            })).json();
+
+            if (payload.error) {
+                console.log(payload);
+                dispatch({type: LOADING, payload: getState().content.data.errorEthereumTransactionInvalid});
+                setTimeout(dispatch, 5000, {type: LOADING, payload: null});
+                return;
+            }
+
+            console.log(payload.stellar);
+
+            dispatch({
+                type: LOCAL_STORAGE,
+                payload: {
+                    stellarAccount: payload.stellar,
+                    receipt: payload.receipt,
+                }
+            });
+
+        } else {
+            payload = {
+                stellar: localStorage.stellarAccount,
+                receipt: localStorage.receipt,
+            };
         }
 
+        console.log('payload', payload);
+
         dispatch({type: CLAIM, payload});
-        dispatch(trustAsset());
+        dispatch(trustStellarAsset());
     } catch (e) {
+        console.log(e);
         dispatch({type: ERROR, payload: e});
     }
 };
 
 export const claim = () => async (dispatch, getState) => {
     const {stellar} = getState().user;
-    const {transactionHash} = getState().events;
+    const {localStorage} = getState().content;
+    const transactionHash = localStorage.transactionHash || getState().events.transactionHash;
 
     dispatch({type: LOADING, payload: getState().content.data.statusValidatingEthereumTransaction});
 
     try {
-        const data = await fetch(`${getAPIURL()}/transfer`, {
-            method: 'POST',
-            mode: 'cors',
-            cache: 'no-cache',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                tx: transactionHash,
-                pk: stellar.pk,
-            })
-        });
+        let payload;
 
-        const payload = await data.json();
-        console.log(payload);
+        if (!localStorage.complete) {
+            payload = await (await fetch(`${getAPIURL()}/transfer`, {
+                method: 'POST',
+                mode: 'cors',
+                cache: 'no-cache',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    tx: transactionHash,
+                    pk: stellar.pk,
+                })
+            })).json();
 
-        if (payload.error) {
-            if (payload.error === 1) {
-                dispatch({type: LOADING, payload: getState().content.data.errorPaymentAlreadyProcessed});
-            } else {
-                dispatch({type: LOADING, payload: payload.message});
+            if (payload.error) {
+                if (payload.error === 1) {
+                    dispatch({type: LOADING, payload: getState().content.data.errorPaymentAlreadyProcessed});
+                } else {
+                    dispatch({type: LOADING, payload: payload.message});
+                }
+                setTimeout(dispatch, 2000, {
+                    type: LOADING,
+                    payload: null
+                });
+
+                return;
             }
-            setTimeout(dispatch, 2000, {
-                type: LOADING,
-                payload: null
+
+            dispatch({
+                type: LOCAL_STORAGE,
+                payload: {
+                    transfer: payload,
+                }
             });
 
-            return;
+        } else {
+            payload = localStorage.transfer;
         }
 
         dispatch({type: TRANSFER, payload});
@@ -86,7 +122,15 @@ export const claim = () => async (dispatch, getState) => {
             type: LOADING,
             payload: null,
         });
+
+        dispatch({
+            type: LOCAL_STORAGE,
+            payload: {
+                complete: true,
+            }
+        });
     } catch (e) {
+        console.log(e);
         dispatch({type: ERROR, payload: e});
     }
 };

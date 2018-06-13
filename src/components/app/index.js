@@ -6,34 +6,51 @@ import {
     FormInput,
     FormValidationMessage
 } from 'react-native-elements';
-import {Text, Modal, StyleSheet, View, ScrollView, Linking} from 'react-native';
+import {Text, Modal, View, ScrollView, Linking} from 'react-native';
 import {utils} from 'web3';
 import {
     userLogin,
     // getActivity
 } from '../../actions/eth';
+import styles from './styles';
 import {transfer, burn, changeNetwork} from '../../actions/contract';
-import {loadContent} from '../../actions/content';
+import {checkUserCache} from '../../actions/eth';
+import {loadContent, loadLocalStorage} from '../../actions/content';
+import {clear} from '../../utils/storage';
 import Loading from '../loading';
 import Network from '../network';
+import {ENV} from '../../constants/config';
+import Config from 'react-native-config';
 
 class App extends Component {
 
   state = {
       burnInput: '5',
-      mnemonic: 'elephant merit raven monkey path outer paddle bounce exist fringe pet dry',
-      pk: '0x798D23d6a84b2EF7d23c4A25735ED55B72072c24',
+      mnemonic: Config.MNEMONIC || 'elephant merit raven monkey path outer paddle bounce exist fringe pet dry',
+      pk: Config.PK || '0x798D23d6a84b2EF7d23c4A25735ED55B72072c24',
       errorImportingAccount: false,
       modal: {
           visible: false,
           message: '',
       },
-      estimatedCost: null
+      estimatedCost: null,
   }
 
-  componentDidMount() {
-      this.props.loadContent();
-      this.props.changeNetwork('ropsten');
+  componentWillMount() {
+      // clear('burning');
+
+      this.props.changeNetwork(ENV);
+
+  }
+
+  componentWillReceiveProps(nextProps) {
+      if (nextProps.contract.instance && !this.props.contract.instance) {
+          nextProps.loadLocalStorage();
+          nextProps.loadContent();
+      }
+      if (nextProps.localStorage && !this.props.localStorage) {
+          nextProps.checkUserCache();
+      }
   }
 
   onImportKey = () => {
@@ -45,12 +62,6 @@ class App extends Component {
       this.props.userLogin(mnemonic, pk);
   }
 
-  componentWillReceiveProps(nextProps) {
-      if ((nextProps.web3 !== this.props.web3) && this.props.contract.instance) {
-          this.onImportKey();
-      }
-  }
-
   onChangePublicKey = (text) => {
       this.setState({pk: text.substr(0, 2) !== '0x' ? `0x${text}` : text});
   }
@@ -60,8 +71,12 @@ class App extends Component {
   }
 
   onSubmitBurn = async () => {
-      const {contract, user} = this.props;
+      const {localStorage, contract, user} = this.props;
       const {burnInput} = this.state;
+      if (localStorage.transactionHash && localStorage.value) {
+          this.props.burn(Number(localStorage.value));
+          return;
+      }
 
       this.setState({
           modal: {
@@ -88,6 +103,10 @@ class App extends Component {
       }
   }
 
+  clearStorage = () => {
+      clear('burning');
+  }
+
   onConfirmedSubmitBurn = () => {
       this.closeModal();
       this.props.burn(Number(this.state.burnInput));
@@ -103,7 +122,13 @@ class App extends Component {
   }
 
   render() {
-      const {estimatedCost, mnemonic, pk, burnInput, errorImportingAccount} = this.state;
+      const {
+          estimatedCost,
+          mnemonic,
+          pk,
+          burnInput,
+          errorImportingAccount,
+      } = this.state;
       const {
           loading,
           contract,
@@ -111,15 +136,19 @@ class App extends Component {
           events,
           web3,
           contentReady,
+          localStorage,
       } = this.props;
 
-      if (!contentReady) {
+      if (!contentReady || !localStorage || !contract.instance) {
           return (
               <View style={styles.loading}>
                   <Text>Loading</Text>
               </View>
           );
       }
+
+      const stellar = (localStorage.stellar && localStorage.started) ? localStorage.stellar : (user.stellar ? user.stellar : null);
+      const tx = localStorage.transactionHash || events.get('transactionHash');
 
       return (
           <ScrollView style={styles.container}>
@@ -142,10 +171,25 @@ class App extends Component {
                           <Text style={styles.sectionHeading}>User details</Text>
                           <Text>Address: {user.coinbase}</Text>
                           <Text>Current Wallet Token Balance: {user.balance}</Text>
+                          <Button titleStyle={styles.buttonTitleStyle} buttonStyle={[styles.buttonStyle, {backgroundColor: 'red'}]} onPress={this.clearStorage} title="Clear storage"/>
                       </View>
                   }
 
-                  {user.balance > 0 && user.coinbase.toLowerCase() !== contract.owner.toLowerCase() &&
+                  {localStorage.complete && localStorage.started &&
+                      <View style={styles.subSectionView}>
+                          <Text style={styles.subSectionHeading}>Your tokens were already burned</Text>
+                          <Text>Check your information below</Text>
+                      </View>
+                  }
+
+                  {!localStorage.complete && localStorage.started &&
+                      <View style={styles.subSectionView}>
+                          <Text>Your burning process has already started, click on the button below to resume the process</Text>
+                          <Button titleStyle={styles.buttonTitleStyle} buttonStyle={styles.buttonStyle} onPress={this.onSubmitBurn} title="Resume process"/>
+                      </View>
+                  }
+
+                  {!localStorage.complete && !localStorage.started && user.balance > 0 && user.coinbase.toLowerCase() !== contract.owner.toLowerCase() &&
                       <View style={styles.subSectionView}>
                           <Text style={styles.subSectionHeading}>Claim Stellar tokens</Text>
                           <Text>Total supply and user supply should decrease</Text>
@@ -155,45 +199,45 @@ class App extends Component {
                       </View>
                   }
 
-                  {user.stellar &&
+                  {stellar &&
                       <View style={styles.subSectionView}>
-                          <Text style={styles.subSectionHeading}>Transaction Hash</Text>
-                          <Text>{events.get('transactionHash')}</Text>
+                          <Text style={styles.subSectionHeading}>Ethereum Transaction Hash</Text>
+                          <Text>{tx}</Text>
                           <Text style={styles.subSectionHeading}>Stellar Account</Text>
-                          <Text>Secret Key: {user.stellar.sk}</Text>
-                          <Text>Public Key: {user.stellar.pk}</Text>
-                          <Button titleStyle={styles.buttonTitleStyle} buttonStyle={styles.buttonStyle} onPress={() => {
-                              Linking.openURL(`https://horizon-testnet.stellar.org/accounts/${user.stellar.pk}`);
-                          }} title="View on Stellar Network" />
+                          <Text>Secret Key: {stellar.sk}</Text>
+                          <Text>Public Key: {stellar.pk}</Text>
+                          {localStorage.complete && <Button titleStyle={styles.buttonTitleStyle} buttonStyle={styles.buttonStyle} onPress={() => {
+                              Linking.openURL(`https://horizon-testnet.stellar.org/accounts/${stellar.pk}`);
+                          }} title="View on Stellar Network" />}
                       </View>
                   }
 
                   {!user.coinbase && web3 &&
-                          <View style={styles.subSectionView}>
-                              <Text style={styles.subSectionHeading}>Let's import your account</Text>
-                              <FormLabel>Fill in your 12 memorable words (seed)</FormLabel>
-                              <FormInput
-                                  containerStyle={styles.inputTextArea}
-                                  inputStyle={styles.inputFieldTextArea}
-                                  multiline={true}
-                                  numberOfLines={3}
-                                  value={mnemonic}
-                                  onChangeText={this.onChangeMnemonic}
-                              />
+                      <View style={styles.subSectionView}>
+                          <Text style={styles.subSectionHeading}>Let's import your account</Text>
+                          <FormLabel>Fill in your 12 memorable words (seed)</FormLabel>
+                          <FormInput
+                              containerStyle={styles.inputTextArea}
+                              inputStyle={styles.inputFieldTextArea}
+                              multiline={true}
+                              numberOfLines={3}
+                              value={mnemonic}
+                              onChangeText={this.onChangeMnemonic}
+                          />
 
-                              <FormLabel>Fill in the Public address of your wallet</FormLabel>
-                              <FormInput
-                                  containerStyle={styles.inputTextArea}
-                                  inputStyle={styles.inputFieldTextArea}
-                                  value={pk}
-                                  multiline={true}
-                                  numberOfLines={3}
-                                  onChangeText={this.onChangePublicKey}
-                              />
+                          <FormLabel>Fill in the Public address of your wallet</FormLabel>
+                          <FormInput
+                              containerStyle={styles.inputTextArea}
+                              inputStyle={styles.inputFieldTextArea}
+                              value={pk}
+                              multiline={true}
+                              numberOfLines={3}
+                              onChangeText={this.onChangePublicKey}
+                          />
 
-                              {errorImportingAccount && <FormValidationMessage>All fields required</FormValidationMessage>}
-                              <Button titleStyle={styles.buttonTitleStyle} buttonStyle={[styles.buttonStyle, styles.importAccountButton]} onPress={this.onImportKey} title="Import" />
-                          </View>
+                          {errorImportingAccount && <FormValidationMessage>All fields required</FormValidationMessage>}
+                          <Button titleStyle={styles.buttonTitleStyle} buttonStyle={[styles.buttonStyle, styles.importAccountButton]} onPress={this.onImportKey} title="Import" />
+                      </View>
                   }
               </View>
 
@@ -201,15 +245,15 @@ class App extends Component {
               <Modal animationType="slide" visible={this.state.modal.visible}>
                   <View style={styles.modalConfirm}>
                       {this.state.modal.message === 'confirm' &&
-                              <Fragment>
-                                  <Text style={styles.modalTitle}>The estimated gas for this transaction is</Text>
-                                  <Text style={[styles.modalTitle, styles.modalTitleCost]}>{estimatedCost}</Text>
-                                  <Text>Are you sure you want to burn your tokens? They will be automatically converted into Stellar Wollo Tokens</Text>
-                                  <View>
-                                      <Button titleStyle={styles.buttonTitleStyle} buttonStyle={[styles.buttonStyle, styles.buttonGreen]} onPress={this.onConfirmedSubmitBurn} title="Let's do this" />
-                                      <Button titleStyle={styles.buttonTitleStyle} buttonStyle={[styles.buttonStyle, styles.buttonRed]} onPress={this.closeModal} title="No" />
-                                  </View>
-                              </Fragment>
+                          <Fragment>
+                              <Text style={styles.modalTitle}>The estimated gas for this transaction is</Text>
+                              <Text style={[styles.modalTitle, styles.modalTitleCost]}>{estimatedCost}</Text>
+                              <Text>Are you sure you want to burn your tokens? They will be automatically converted into Stellar Wollo Tokens</Text>
+                              <View>
+                                  <Button titleStyle={styles.buttonTitleStyle} buttonStyle={[styles.buttonStyle, styles.buttonGreen]} onPress={this.onConfirmedSubmitBurn} title="Let's do this" />
+                                  <Button titleStyle={styles.buttonTitleStyle} buttonStyle={[styles.buttonStyle, styles.buttonRed]} onPress={this.closeModal} title="No" />
+                              </View>
+                          </Fragment>
                       }
 
                       {this.state.modal.message !== 'confirm' && this.state.modal.message !== '' &&
@@ -224,110 +268,11 @@ class App extends Component {
   }
 }
 
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#fff',
-        padding: 10,
-    },
-    tokenTitle: {
-        marginTop: 20,
-        fontSize: 22,
-    },
-    inputTextArea: {
-        marginBottom: 20,
-    },
-    modalConfirm: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
-    },
-    modalTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    modalTitleCost: {
-        marginBottom: 30,
-    },
-    buttonGreen: {
-        width: 200,
-        alignSelf: 'center',
-        backgroundColor: 'green',
-        marginBottom: 10,
-    },
-    buttonRed: {
-        width: 200,
-        alignSelf: 'center',
-        backgroundColor: 'red'
-    },
-    inputFieldTextArea: {
-        maxWidth: '95%',
-        marginTop: 8,
-        paddingBottom: 8,
-        color: 'black'
-    },
-    importAccountButton: {
-        alignSelf: 'center',
-        width: 200
-    },
-    sectionView: {
-        margin: 0,
-        marginBottom: 20,
-        padding: 0,
-    },
-    subSectionView: {
-        margin: 0,
-        padding: 0,
-        marginBottom: 20,
-        left: 0,
-    },
-    sectionHeading: {
-        fontSize: 20,
-        fontWeight: '600'
-    },
-    subSectionHeading: {
-        fontSize: 16,
-        fontWeight: '600',
-        marginTop: 20,
-        marginBottom: 20,
-    },
-    loading: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    inputPrivateKey: {
-        height: 40,
-        padding: 10,
-        borderColor: 'black',
-        marginTop: 20,
-        marginBottom: 20,
-        borderWidth: 1,
-        width: '100%'
-    },
-    buttonStyle: {
-        borderColor: 'transparent',
-        borderWidth: 0,
-        borderRadius: 10,
-        paddingTop: 10,
-        paddingLeft: 15,
-        paddingRight: 15,
-        paddingBottom: 10,
-        margin: 0,
-        marginTop: 20,
-        maxWidth: 300,
-        backgroundColor: '#003278',
-    },
-    buttonTitleStyle: {
-        fontWeight: '600',
-    }
-});
-
 export default connect(({user, web3, events, contract, content}) => ({
     user,
     events,
     contract,
+    localStorage: content.get('localStorage'),
     web3: web3.instance,
     contentReady: content.get('loaded'),
     loading: events.get('loading')
@@ -335,6 +280,8 @@ export default connect(({user, web3, events, contract, content}) => ({
     userLogin,
     loadContent,
     changeNetwork,
+    checkUserCache,
+    loadLocalStorage,
     transfer,
     burn,
 },

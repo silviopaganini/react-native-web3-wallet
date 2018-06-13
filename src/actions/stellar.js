@@ -1,30 +1,51 @@
-import {getKeyPair} from '../utils';
-import {trustAsset as trustAssetSDK} from '../constants/stellar';
+import {Asset, useTestnet, trustAsset} from '@pigzbe/stellar-utils';
 import {claim} from './api';
-import {STELLAR, LOADING, ERROR} from '../constants/action-types';
+import {LOADING, LOCAL_STORAGE} from '../constants/action-types';
+import Config from 'react-native-config';
 
-export const trustAsset = () => async (dispatch, getState) => {
+if (Config.STELLAR_USE_TESTNET) {
+    useTestnet();
+}
+
+export const trustStellarAsset = () => async (dispatch, getState) => {
     const {stellar} = getState().user;
-    const keyPair = getKeyPair(stellar.sk);
+    const {localStorage} = getState().content;
+    const {
+        statusTrustingStellarAsset,
+        statusStellarTokenTrusted,
+        errorTrustingStellarAsset
+    } = getState().content.data;
 
     dispatch({
         type: LOADING,
-        payload: getState().content.data.statusTrustingStellarAsset,
+        payload: statusTrustingStellarAsset,
     });
 
+
     try {
-        await trustAssetSDK(stellar.pk, keyPair);
-        dispatch({
-            type: LOADING,
-            payload: getState().content.data.statusStellarTokenTrusted,
-        });
+        if (!localStorage.wolloTrusted) {
+            const asset = new Asset(Config.STELLAR_TOKEN_CODE, Config.STELLAR_TOKEN_ISSUER);
+            await trustAsset(stellar.sk, asset);
+            dispatch({
+                type: LOADING,
+                payload: statusStellarTokenTrusted,
+            });
+
+            dispatch({
+                type: LOCAL_STORAGE,
+                payload: {
+                    wolloTrusted: true,
+                }
+            });
+        }
 
         dispatch(claim());
 
     } catch (e) {
+        console.log(e);
         dispatch({
-            type: ERROR,
-            payload: getState().content.data.errorTrustingStellarAsset,
+            type: LOADING,
+            payload: errorTrustingStellarAsset,
         });
 
         setTimeout(dispatch, 6000, {type: LOADING, payload: null});
