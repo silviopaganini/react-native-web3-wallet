@@ -1,3 +1,5 @@
+import {ENV} from '../constants/config';
+
 export const watchConfirmations = ({
     web3,
     transactionHash,
@@ -17,6 +19,11 @@ export const watchConfirmations = ({
             if (onValidatedBlock) {
                 onValidatedBlock(validatedBlocks);
             }
+        }
+
+        if (ENV === 'local') {
+            resolve(receipt);
+            return;
         }
 
         if (validatedBlocks >= validations) {

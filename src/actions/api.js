@@ -15,6 +15,7 @@ export const validate = () => async (dispatch, getState) => {
     const transactionHash = localStorage.transactionHash || getState().events.transactionHash;
 
     console.log('validate');
+    console.log(transactionHash);
 
     dispatch({type: LOADING, payload: 'Finishing Ethereum validation'});
 
@@ -40,7 +41,7 @@ export const validate = () => async (dispatch, getState) => {
                 return;
             }
 
-            console.log(payload.stellar);
+            console.log(payload);
 
             dispatch({
                 type: LOCAL_STORAGE,

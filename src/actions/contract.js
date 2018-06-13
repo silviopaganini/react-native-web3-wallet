@@ -24,6 +24,8 @@ const getContract = () => async (dispatch, getState) => {
         const web3 = getState().web3.instance;
         const {coinbase} = getState().user;
 
+        console.log(network);
+
         const deployedContract = new web3.eth.Contract(Contract[network].ABI, Contract[network].ADDRESS, {
             gasPrice: await web3.eth.getGasPrice(),
             gas: 6721975,
