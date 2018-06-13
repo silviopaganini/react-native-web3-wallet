@@ -3,7 +3,7 @@ package com.erc20wallet;
 import android.app.Application;
 
 import com.facebook.react.ReactApplication;
-import com.pusherman.networkinfo.RNNetworkInfoPackage;
+import com.lugg.ReactNativeConfig.ReactNativeConfigPackage;
 import com.bitgo.randombytes.RandomBytesPackage;
 import com.oblador.vectoricons.VectorIconsPackage;
 import com.facebook.react.ReactNativeHost;
@@ -26,7 +26,7 @@ public class MainApplication extends Application implements ReactApplication {
     protected List<ReactPackage> getPackages() {
       return Arrays.<ReactPackage>asList(
           new MainReactPackage(),
-            new RNNetworkInfoPackage(),
+            new ReactNativeConfigPackage(),
             new RandomBytesPackage(),
             new VectorIconsPackage()
       );
